@@ -1,0 +1,159 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{519E2187-0260-4778-A241-F55F954784DF}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Keyfactor.AnyGateway.SslStore</RootNamespace>
+    <AssemblyName>SslStoreCaProxy</AssemblyName>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BouncyCastle.Crypto, Version=1.8.5.0, Culture=neutral, PublicKeyToken=0e99375e54769942">
+      <HintPath>..\packages\BouncyCastle.1.8.5\lib\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="CAProxy.AnyGateway.Core, Version=20.9.0.0, Culture=neutral, PublicKeyToken=0ed89d330114ab09, processorArchitecture=MSIL">
+      <HintPath>..\packages\Keyfactor.AnyGateway.SDK.20.9.0\lib\net462\CAProxy.AnyGateway.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="CAProxy.Interfaces, Version=20.9.0.0, Culture=neutral, PublicKeyToken=0ed89d330114ab09, processorArchitecture=MSIL">
+      <HintPath>..\packages\Keyfactor.AnyGateway.SDK.20.9.0\lib\net462\CAProxy.Interfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Common.Logging, Version=3.4.1.0, Culture=neutral, PublicKeyToken=af08829b84f0328e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Common.Logging.3.4.1\lib\net40\Common.Logging.dll</HintPath>
+    </Reference>
+    <Reference Include="Common.Logging.Core, Version=3.4.1.0, Culture=neutral, PublicKeyToken=af08829b84f0328e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Common.Logging.Core.3.4.1\lib\net40\Common.Logging.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="CommonCAProxy, Version=20.9.0.0, Culture=neutral, PublicKeyToken=0ed89d330114ab09, processorArchitecture=MSIL">
+      <HintPath>..\packages\Keyfactor.AnyGateway.SDK.20.9.0\lib\net462\CommonCAProxy.dll</HintPath>
+    </Reference>
+    <Reference Include="CSS.Common, Version=1.6.0.0, Culture=neutral, PublicKeyToken=0ed89d330114ab09, processorArchitecture=MSIL">
+      <HintPath>..\packages\CSS.Common.1.6.0\lib\net462\CSS.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="CSS.PKI, Version=2.11.0.0, Culture=neutral, PublicKeyToken=0ed89d330114ab09, processorArchitecture=MSIL">
+      <HintPath>..\packages\CSS.PKI.2.11.0\lib\net462\CSS.PKI.dll</HintPath>
+    </Reference>
+    <Reference Include="Interop.CERTENROLLLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CERTENROLLLibx64.1.0.0.1\lib\net35\Interop.CERTENROLLLib.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Net.Http.WebRequest" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Client\Models\EmailApproverRequest.cs" />
+    <Compile Include="Client\Models\EmailApproverResponse.cs" />
+    <Compile Include="Interfaces\IEmailApproverRequest.cs" />
+    <Compile Include="Interfaces\IEmailApproverResponse.cs" />
+    <Compile Include="Interfaces\IOrganizationListRequest.cs" />
+    <Compile Include="Client\Models\OrganizationListRequest.cs" />
+    <Compile Include="Interfaces\IOrganizationResponse.cs" />
+    <Compile Include="Client\Models\OrganizationResponse.cs" />
+    <Compile Include="Interfaces\IOrganization.cs" />
+    <Compile Include="Interfaces\IOrganizationContact.cs" />
+    <Compile Include="Client\Models\Organization.cs" />
+    <Compile Include="Client\Models\OrganizationContact.cs" />
+    <Compile Include="Interfaces\IKeyfactorClient.cs" />
+    <Compile Include="Client\KeyfactorClient.cs" />
+    <Compile Include="Client\Models\AddSan.cs" />
+    <Compile Include="Client\Models\AdminContact.cs" />
+    <Compile Include="Client\Models\AuthenticationStatus.cs" />
+    <Compile Include="Client\Models\AuthRequest.cs" />
+    <Compile Include="Client\Models\AuthResponse.cs" />
+    <Compile Include="Client\Models\Certificate.cs" />
+    <Compile Include="Client\Models\DeleteSan.cs" />
+    <Compile Include="Client\Models\DomainAuthVettingStatus.cs" />
+    <Compile Include="Client\Models\DownloadCertificateRequest.cs" />
+    <Compile Include="Client\Models\DownloadCertificateResponse.cs" />
+    <Compile Include="Client\Models\EditSan.cs" />
+    <Compile Include="Client\Models\EnrollmentField.cs" />
+    <Compile Include="Interfaces\ITemplate.cs" />
+    <Compile Include="Client\Models\Template.cs" />
+    <Compile Include="Interfaces\ITemplateRegex.cs" />
+    <Compile Include="Client\Models\TemplateRegex.cs" />
+    <Compile Include="Interfaces\IEnrollmentField.cs" />
+    <Compile Include="Interfaces\IOrderStatusResponse.cs" />
+    <Compile Include="Client\Models\OrderStatusResponse.cs" />
+    <Compile Include="Interfaces\IReIssueRequest.cs" />
+    <Compile Include="Interfaces\IAddSan.cs" />
+    <Compile Include="Client\Models\ReIssueRequest.cs" />
+    <Compile Include="Interfaces\ITemplateNewOrderRequest.cs" />
+    <Compile Include="Client\Models\TemplateNewOrderRequest.cs" />
+    <Compile Include="Interfaces\IOrderStatusRequest.cs" />
+    <Compile Include="Client\Models\OrderStatusRequest.cs" />
+    <Compile Include="Interfaces\IRevokeOrderResponse.cs" />
+    <Compile Include="Interfaces\IRevokeOrderRequest.cs" />
+    <Compile Include="Client\Models\RevokeOrderRequest.cs" />
+    <Compile Include="Client\Models\RevokeOrderResponse.cs" />
+    <Compile Include="Exceptions\RetryCountExceededException.cs" />
+    <Compile Include="Interfaces\IDownloadCertificateRequest.cs" />
+    <Compile Include="Interfaces\IDownloadCertificateResponse.cs" />
+    <Compile Include="Interfaces\ITechnicalContact.cs" />
+    <Compile Include="Interfaces\IQueryOrderRequest.cs" />
+    <Compile Include="Interfaces\IOrganizationInfo.cs" />
+    <Compile Include="Interfaces\IOrganizationAddress.cs" />
+    <Compile Include="Interfaces\IOrderStatus.cs" />
+    <Compile Include="Interfaces\IOrderNote.cs" />
+    <Compile Include="Interfaces\IDomainAuthVettingStatus.cs" />
+    <Compile Include="Interfaces\IAuthResponse.cs" />
+    <Compile Include="Interfaces\IAuthenticationStatus.cs" />
+    <Compile Include="Interfaces\IAdminContact.cs" />
+    <Compile Include="Interfaces\IAuthRequest.cs" />
+    <Compile Include="Interfaces\INewOrderResponse.cs" />
+    <Compile Include="Interfaces\INewOrderRequest.cs" />
+    <Compile Include="Client\Models\NewOrderRequest.cs" />
+    <Compile Include="Client\Models\NewOrderResponse.cs" />
+    <Compile Include="Client\Models\OrderNote.cs" />
+    <Compile Include="Client\Models\OrderStatus.cs" />
+    <Compile Include="Client\Models\OrganizationAddress.cs" />
+    <Compile Include="Client\Models\OrganizationInfo.cs" />
+    <Compile Include="Client\Models\QueryOrderRequest.cs" />
+    <Compile Include="Client\Models\TechnicalContact.cs" />
+    <Compile Include="Client\SslStoreClient.cs" />
+    <Compile Include="Constants.cs" />
+    <Compile Include="Interfaces\ISslStoreClient.cs" />
+    <Compile Include="Interfaces\IRequestManager.cs" />
+    <Compile Include="RequestManager.cs" />
+    <Compile Include="SslStoreCaProxy.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

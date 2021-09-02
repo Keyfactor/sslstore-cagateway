@@ -1,0 +1,48 @@
+{
+  "Id": 999999,
+  "CommonName": "sectigossl",
+  "TemplateName": "sectigossl",
+  "Oid": "Replace OID",
+  "KeySize": "2048",
+  "KeyType": "RSA",
+  "ForestRoot": "keyfactor.lab",
+  "FriendlyName": "Replace Friendly Name",
+  "KeyRetention": "AfterExpiration",
+  "KeyRetentionDays": 55,
+  "KeyArchival": false,
+  "EnrollmentFields": [
+    {
+      "Id": 21261,
+      "Name": "Admin Contact - Email",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+   {
+      "Id": 21278,
+      "Name": "Approver Email",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+    {
+      "Id": 21284,
+      "Name": "Validity Period (In Months)",
+      "Options": [
+        "12",
+        "24",
+        "36",
+        "48",
+        "60"
+      ],
+      "DataType": 2
+    }
+  ],
+  "AllowedEnrollmentTypes": 7,
+  "TemplateRegexes": [],
+  "UseAllowedRequesters": false,
+  "AllowedRequesters": [],
+  "DisplayName": "Replace Display Name"
+}

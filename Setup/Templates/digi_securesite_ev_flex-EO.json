@@ -1,0 +1,48 @@
+{
+  "Id": 999999,
+  "CommonName": "digi_securesite_ev_flex-EO",
+  "TemplateName": "digi_securesite_ev_flex-EO",
+  "Oid": "Replace OID",
+  "KeySize": "2048",
+  "KeyType": "RSA",
+  "ForestRoot": "keyfactor.lab",
+  "FriendlyName": "Replace Friendly Name",
+  "KeyRetention": "AfterExpiration",
+  "KeyRetentionDays": 55,
+  "KeyArchival": false,
+   "EnrollmentFields": [
+    {
+      "Id": 520491,
+      "Name": "DNS Names Comma Separated",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+    {
+      "Id": 520492,
+      "Name": "Validity Period (In Months)",
+      "Options": [
+        "12",
+        "24",
+        "36",
+        "48",
+        "60",
+        "72"
+      ],
+      "DataType": 2
+    },
+    {
+      "Id": 520493,
+      "Name": "Organization ID",
+      "Options": [
+      ],
+      "DataType": 2
+    }
+  ],
+  "AllowedEnrollmentTypes": 7,
+  "TemplateRegexes": [],
+  "UseAllowedRequesters": false,
+  "AllowedRequesters": [],
+  "DisplayName": "Replace Display Name"
+}
