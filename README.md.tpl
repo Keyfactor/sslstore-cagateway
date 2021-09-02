@@ -7,23 +7,13 @@
 *** 
 # Getting Started
 
-## Integration Limitations
+## Integration Overview
 
-1) The Snyc process will only Sync Certificates that have been enrolled via Keyfactor.  There is no Quovadis API call to get a list of all the certificates in Quovadis so we can't sync Certs that came outside of Keyfactor.
 
-2) P12 Certificates can only be enrolled and not Renewed or Revoked since those are not available for download via the Quovadis API.
 
-3) Certificates can only be downloaded 25 times from Quovadis so the Sync will grab it the first time and then will not try again to avoid reaching the limit.
-
-## Internal Keyfactor Videos
-There are two videos that show the configuration and functionality of the integration.  These can be made available externally upon request.
-
-[Config Video](https://web.microsoftstream.com/video/c7c59d62-74e6-4889-a13e-3a372749c211)
-
-[Functionality Video](https://web.microsoftstream.com/video/afd315e1-c90c-4e1c-a64d-473b9c785f1a)
 
 ## Standard Gateway Installation
-To begin, you must have the CA Gateway Service 21.3.2 installed and operational before attempting to configure the Quovadis Any Gateway plugin. This integration was tested with Keyfactor 8.7.0.0.
+To begin, you must have the CA Gateway Service 21.3.2 installed and operational before attempting to configure the SSLStore Any Gateway plugin. This integration was tested with Keyfactor 8.7.0.0.
 To install the gateway follow these instructions.
 
 1) Gateway Server - run the installation .msi located [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/AnyGateway-21.3.2.msi)
@@ -92,26 +82,24 @@ To install the gateway follow these instructions.
 ---
 
 
-## Quovadis AnyGateway Specific Configuration
-It is important to note that importing the  Quovadis configuration into the CA Gateway prior to installing the binaries must be completed. Additionally, the CA Gateway service
+## SSLStore AnyGateway Specific Configuration
+It is important to note that importing the  SSLStore configuration into the CA Gateway prior to installing the binaries must be completed. Additionally, the CA Gateway service
 must be running in order to succesfully import the configuation. When the CA Gateway service starts it will attempt to validate the connection information to 
 the CA.  Without the imported configuration, the service will fail to start.
 
 ### Binary Installation
 
 1) Get the Latest Zip File from [Here](https://github.com/Keyfactor/quovadis-cagateway/releases)
-2) Gateway Server - Copy the QuovadisCAProxy.dll to the location where the Gateway Framework was installed (usually C:\Program Files\Keyfactor\Keyfactor AnyGateway)
+2) Gateway Server - Copy the SSLStoreCaProxy.dll to the location where the Gateway Framework was installed (usually C:\Program Files\Keyfactor\Keyfactor AnyGateway)
 
 ### Configuration Changes
 1) Gateway Server - Edit the CAProxyServer.exe.config file and replace the line that says "NoOp" with the line below:
    ```
-   <alias alias="CAConnector" type="Keyfactor.AnyGateway.Quovadis.QuovadisCaProxy, QuovadisCaProxy"/>
+   <alias alias="CAConnector" type="Keyfactor.AnyGateway.SslStore.SslStoreCaProxy, SslStoreCaProxy"/>
    ```
-2) Gateway Server - Install the Root Quovadis Certificate that was received from Quovadis [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/Quovadis%20Root%20Cert.cer)
+2) Gateway Server - Install the Intermediate Comodo Certificate that was received from SSLStore [Here](https://github.com/Keyfactor/sslstore-cagateway/raw/main/SSLStoreIntermediate.cer)
 
-3) Gateway Server - Install the Intermediate Quovadis Certificate that was received from Quovadis [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/Quovadis%20Intermediate.cer)
-
-4) Gateway Server - Take the sample Config.json located [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/SampleConfig.json) and make the following modifications
+3) Gateway Server - Take the sample Config.json located [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/SampleConfig.json) and make the following modifications
 
 - *Security Settings Modifications* (Swap this out for the typical Gateway Security Settings for Test or Prod)
 
@@ -136,57 +124,1046 @@ the CA.  Without the imported configuration, the service will fail to start.
       "ADMINISTRATOR": "Allow"
     }
 ```
-- *Quovadis Environment Settings* (Modify these with the keys and Urls obtained from Quovadis)
+- *SSLStore Environment Settings* (Modify these with the keys and Urls obtained from SSLStore)
 ```
   "CAConnection": {
-    "BaseUrl": "https://tlclientdev.quovadisglobal.com/ws/CertificateServices.asmx",
-    "WebServiceSigningCertDir": "C:\\Program Files\\Keyfactor\\Keyfactor AnyGateway\\SomeFileYouGot.p12",
-    "WebServiceSigningCertPassword": "SomePasswordYouSet",
-    "OrganizationId":"KeyFactor",
-    "SMIME P12 no registrant interaction":"NoSync",
-    "QV Business SSL 10 SAN - Admin generate":"Sync",
-    "SMIME Client Side Key Gen":"NoSync",
-    "QV Business SSL 10 SAN - Subscriber Interaction":"Sync",
-    "KeyfactorApiUrl":"https://someKeyfactorDomain/KeyfactorAPI/",
-    "KeyfactorApiUserId":"KFApiUserId",
-    "KeyfactorApiPassword":"KFAPIPassword"
+    "SSLStoreURL": "https://sandbox-wbapi.thesslstore.com",
+    "PartnerCode": "SomePartnerCodeFromSSLStore",
+    "AuthToken": "SomeAuthTokenFromSSLStore",
+    "KeyfactorApiUrl": "https://kftrain.keyfactor.lab/KeyfactorAPI",
+    "KeyfactorApiUserId": "SomeKeyfactorAPIUser",
+    "KeyfactorApiPassword": "SomeKeyfactorAPIPassword",
+    "PageSize": "25",
+    "SampleRequest": {
+      "AuthRequest": {
+        "PartnerCode": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "None"
+          }
+        },
+        "AuthToken": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "None"
+          }
+        }
+      },
+      "ProductCode": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "None"
+        }
+      },
+      "TSSOrganizationId": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "None"
+          ],
+          "EnrollmentFieldMapping": "Organization ID"
+        }
+      },
+      "OrganizationInfo": {
+        "OrganizationName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "digi_plus_ssl",
+              "digi_wc_ssl",
+              "digi_md_ssl",
+              "digi_securesite_md",
+              "digi_csc",
+              "digi_securesite",
+              "digi_securesite_pro",
+              "digi_securesite_wc",
+              "digi_securesite_pro_ev",
+              "digi_csc_ev",
+              "digi_ev_md_ssl",
+              "digi_securesite_ev_md",
+              "digi_securesite_ev",
+              "digi_ssl_ev_basic",
+              "digi_securesite_ev_flex",
+              "digi_securesite_pro_ev_flex",
+              "digi_securesite_pro_flex",
+              "digi_securesite_pro_ev_flex",
+              "digi_ssl_basic",
+              "digi_securesite_flex",
+              "digi_plus_ev_ssl",
+              "digi_doc_signing_org_2000",
+              "digi_doc_signing_org_5000",
+              "digi_truebizid_ev",
+              "digi_truebizid",
+              "digi_truebizid_ev_md",
+              "digi_truebizid_wc",
+              "digi_truebizid_md",
+              "digi_truebizid_md_wc",
+              "digi_truebizid_flex",
+              "digi_truebizid_ev_flex",
+              "digi_sslwebserver_ev",
+              "digi_sslwebserver",
+              "digi_sslwebserver_wc",
+              "digi_sslwebserver_md_wc",
+              "digi_sslwebserver_flex",
+              "digi_sslwebserver_ev_flex",
+              "truebizid",
+              "truebusinessidev",
+              "truebusinessidevmd",
+              "truebusinessidwildcard",
+              "truebizidmdwc",
+              "truebizidmd",
+              "malwarescan",
+              "sslwebserverwildcard",
+              "thawtecsc",
+              "sslwebserver",
+              "sslwebserverev",
+              "sectigocsc",
+              "sectigoevssl",
+              "sectigoevcsc",
+              "sectigoevmdc",
+              "sectigoovssl",
+              "sectigomdc",
+              "sectigomdcwildcard",
+              "sectigoovwildcard",
+              "comodocsc",
+              "positiveevssl",
+              "comodoevssl",
+              "comodoevcsc",
+              "enterpriseproev",
+              "enterpriseproevmdc",
+              "positiveevmdc",
+              "comodoevmdc",
+              "comodomdc",
+              "instantssl",
+              "instantsslpro",
+              "comodopremiumssl",
+              "comodomdcwildcard",
+              "comodopremiumwildcard",
+              "comodouccwildcard",
+              "comodoucc",
+              "elitessl",
+              "comodopciscan",
+              "enterprisessl",
+              "enterprisepro",
+              "enterpriseprowc",
+              "pacenterprise",
+              "hackerprooftm",
+              "hgpcicontrolscan"
+            ],
+            "EnrollmentFieldMapping": "Organization Name"
+          }
+        },
+        "RegistrationNumber": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "certum"
+            ],
+            "EnrollmentFieldMapping": "Organization Registration Number"
+          }
+        },
+        "JurisdictionCountry": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "comodoevssl",
+              "comodoevcsc",
+              "comodoevmdc",
+              "sectigoevssl",
+              "sectigoevcsc",
+              "sectigoevmdc",
+              "enterpriseproev",
+              "enterpriseproevmdc",
+              "positiveevmdc",
+              "positiveevssl"
+            ],
+            "EnrollmentFieldMapping": "Organization Jurisdiction Country"
+          }
+        },
+        "OrganizationAddress": {
+          "AddressLine1": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "digi_plus_ssl",
+                "digi_wc_ssl",
+                "digi_md_ssl",
+                "digi_securesite_md",
+                "digi_csc",
+                "digi_securesite",
+                "digi_securesite_pro",
+                "digi_securesite_wc",
+                "digi_securesite_pro_ev",
+                "digi_csc_ev",
+                "digi_ev_md_ssl",
+                "digi_securesite_ev_md",
+                "digi_securesite_ev",
+                "digi_ssl_ev_basic",
+                "digi_securesite_ev_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_securesite_pro_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_ssl_basic",
+                "digi_securesite_flex",
+                "digi_plus_ev_ssl",
+                "digi_doc_signing_org_2000",
+                "digi_doc_signing_org_5000",
+                "digi_truebizid_ev",
+                "digi_truebizid",
+                "digi_truebizid_ev_md",
+                "digi_truebizid_wc",
+                "digi_truebizid_md",
+                "digi_truebizid_md_wc",
+                "digi_truebizid_flex",
+                "digi_truebizid_ev_flex",
+                "digi_sslwebserver_ev",
+                "digi_sslwebserver",
+                "digi_sslwebserver_wc",
+                "digi_sslwebserver_md_wc",
+                "digi_sslwebserver_flex",
+                "digi_sslwebserver_ev_flex",
+                "truebizid",
+                "truebusinessidev",
+                "truebusinessidevmd",
+                "truebusinessidwildcard",
+                "truebizidmdwc",
+                "truebizidmd",
+                "malwarescan",
+                "sslwebserverwildcard",
+                "thawtecsc",
+                "sslwebserver",
+                "sslwebserverev",
+                "sectigocsc",
+                "sectigoevssl",
+                "sectigoevcsc",
+                "sectigoevmdc",
+                "sectigoovssl",
+                "sectigomdc",
+                "sectigomdcwildcard",
+                "sectigoovwildcard",
+                "comodocsc",
+                "positiveevssl",
+                "comodoevssl",
+                "comodoevcsc",
+                "enterpriseproev",
+                "enterpriseproevmdc",
+                "positiveevmdc",
+                "comodoevmdc",
+                "comodomdc",
+                "instantssl",
+                "instantsslpro",
+                "comodopremiumssl",
+                "comodomdcwildcard",
+                "comodopremiumwildcard",
+                "comodouccwildcard",
+                "comodoucc",
+                "elitessl",
+                "comodopciscan",
+                "enterprisessl",
+                "enterprisepro",
+                "enterpriseprowc",
+                "pacenterprise",
+                "hackerprooftm",
+                "hgpcicontrolscan"
+              ],
+              "EnrollmentFieldMapping": "Organization Address"
+            }
+          },
+          "Region": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "digi_plus_ssl",
+                "digi_wc_ssl",
+                "digi_md_ssl",
+                "digi_securesite_md",
+                "digi_csc",
+                "digi_securesite",
+                "digi_securesite_pro",
+                "digi_securesite_wc",
+                "digi_securesite_pro_ev",
+                "digi_csc_ev",
+                "digi_ev_md_ssl",
+                "digi_securesite_ev_md",
+                "digi_securesite_ev",
+                "digi_ssl_ev_basic",
+                "digi_securesite_ev_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_securesite_pro_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_ssl_basic",
+                "digi_securesite_flex",
+                "digi_plus_ev_ssl",
+                "digi_doc_signing_org_2000",
+                "digi_doc_signing_org_5000",
+                "digi_truebizid_ev",
+                "digi_truebizid",
+                "digi_truebizid_ev_md",
+                "digi_truebizid_wc",
+                "digi_truebizid_md",
+                "digi_truebizid_md_wc",
+                "digi_truebizid_flex",
+                "digi_truebizid_ev_flex",
+                "digi_sslwebserver_ev",
+                "digi_sslwebserver",
+                "digi_sslwebserver_wc",
+                "digi_sslwebserver_md_wc",
+                "digi_sslwebserver_flex",
+                "digi_sslwebserver_ev_flex",
+                "truebizid",
+                "truebusinessidev",
+                "truebusinessidevmd",
+                "truebusinessidwildcard",
+                "truebizidmdwc",
+                "truebizidmd",
+                "malwarescan",
+                "sslwebserverwildcard",
+                "thawtecsc",
+                "sslwebserver",
+                "sslwebserverev",
+                "sectigocsc",
+                "sectigoevssl",
+                "sectigoevcsc",
+                "sectigoevmdc",
+                "sectigoovssl",
+                "sectigomdc",
+                "sectigomdcwildcard",
+                "sectigoovwildcard",
+                "comodocsc",
+                "positiveevssl",
+                "comodoevssl",
+                "comodoevcsc",
+                "enterpriseproev",
+                "enterpriseproevmdc",
+                "positiveevmdc",
+                "comodoevmdc",
+                "comodomdc",
+                "instantssl",
+                "instantsslpro",
+                "comodopremiumssl",
+                "comodomdcwildcard",
+                "comodopremiumwildcard",
+                "comodouccwildcard",
+                "comodoucc",
+                "elitessl",
+                "comodopciscan",
+                "enterprisessl",
+                "enterprisepro",
+                "enterpriseprowc",
+                "pacenterprise",
+                "hackerprooftm",
+                "hgpcicontrolscan"
+              ],
+              "EnrollmentFieldMapping": "Organization State/Province"
+            }
+          },
+          "PostalCode": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "digi_plus_ssl",
+                "digi_wc_ssl",
+                "digi_md_ssl",
+                "digi_securesite_md",
+                "digi_csc",
+                "digi_securesite",
+                "digi_securesite_pro",
+                "digi_securesite_wc",
+                "digi_securesite_pro_ev",
+                "digi_csc_ev",
+                "digi_ev_md_ssl",
+                "digi_securesite_ev_md",
+                "digi_securesite_ev",
+                "digi_ssl_ev_basic",
+                "digi_securesite_ev_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_securesite_pro_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_ssl_basic",
+                "digi_securesite_flex",
+                "digi_plus_ev_ssl",
+                "digi_doc_signing_org_2000",
+                "digi_doc_signing_org_5000",
+                "digi_truebizid_ev",
+                "digi_truebizid",
+                "digi_truebizid_ev_md",
+                "digi_truebizid_wc",
+                "digi_truebizid_md",
+                "digi_truebizid_md_wc",
+                "digi_truebizid_flex",
+                "digi_truebizid_ev_flex",
+                "digi_sslwebserver_ev",
+                "digi_sslwebserver",
+                "digi_sslwebserver_wc",
+                "digi_sslwebserver_md_wc",
+                "digi_sslwebserver_flex",
+                "digi_sslwebserver_ev_flex",
+                "truebizid",
+                "truebusinessidev",
+                "truebusinessidevmd",
+                "truebusinessidwildcard",
+                "truebizidmdwc",
+                "truebizidmd",
+                "malwarescan",
+                "sslwebserverwildcard",
+                "thawtecsc",
+                "sslwebserver",
+                "sslwebserverev",
+                "sectigocsc",
+                "sectigoevssl",
+                "sectigoevcsc",
+                "sectigoevmdc",
+                "sectigoovssl",
+                "sectigomdc",
+                "sectigomdcwildcard",
+                "sectigoovwildcard",
+                "comodocsc",
+                "positiveevssl",
+                "comodoevssl",
+                "comodoevcsc",
+                "enterpriseproev",
+                "enterpriseproevmdc",
+                "positiveevmdc",
+                "comodoevmdc",
+                "comodomdc",
+                "instantssl",
+                "instantsslpro",
+                "comodopremiumssl",
+                "comodomdcwildcard",
+                "comodopremiumwildcard",
+                "comodouccwildcard",
+                "comodoucc",
+                "elitessl",
+                "comodopciscan",
+                "enterprisessl",
+                "enterprisepro",
+                "enterpriseprowc",
+                "pacenterprise",
+                "hackerprooftm",
+                "hgpcicontrolscan"
+              ],
+              "EnrollmentFieldMapping": "Organization Postal Code"
+            }
+          },
+          "LocalityName": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "comodocsc",
+                "comodoevssl",
+                "comodoevcsc",
+                "comodoevmdc",
+                "comodomdc",
+                "comodomdcwildcard",
+                "comodouccwildcard",
+                "comodoucc",
+                "pacenterprise"
+              ],
+              "EnrollmentFieldMapping": "Organization Locality Name"
+            }
+          },
+          "Country": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "truebizidmd",
+                "digi_ev_md_ssl",
+                "digi_md_ssl",
+                "digi_plus_ev_ssl",
+                "digi_plus_ssl",
+                "digi_securesite",
+                "digi_securesite_wc",
+                "digi_securesite_pro_ev",
+                "digi_securesite_ev_md",
+                "digi_securesite_ev",
+                "digi_ssl_ev_basic",
+                "digi_securesite_ev_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_securesite_pro_flex",
+                "digi_ssl_basic",
+                "digi_truebizid_ev_flex",
+                "digi_sslwebserver_ev_flex",
+                "digi_securesite_flex",
+                "digi_truebizid_ev",
+                "digi_truebizid",
+                "digi_truebizid_ev_md",
+                "digi_truebizid_wc",
+                "digi_truebizid_md",
+                "digi_truebizid_md_wc",
+                "digi_sslwebserver_ev",
+                "digi_sslwebserver",
+                "digi_sslwebserver_wc",
+                "digi_sslwebserver_md_wc",
+                "digi_sslwebserver_flex"
+              ],
+              "EnrollmentFieldMapping": "Organization Country"
+            }
+          },
+          "Phone": {
+            "FieldData": {
+              "RequiredForProducts": [
+                "truebizidmd",
+                "digi_ev_md_ssl",
+                "digi_md_ssl",
+                "digi_plus_ev_ssl",
+                "digi_plus_ssl",
+                "digi_securesite",
+                "digi_securesite_wc",
+                "digi_securesite_pro_ev",
+                "digi_securesite_ev_md",
+                "digi_securesite_ev",
+                "digi_ssl_ev_basic",
+                "digi_securesite_ev_flex",
+                "digi_securesite_pro_ev_flex",
+                "digi_securesite_pro_flex",
+                "digi_ssl_basic",
+                "digi_sslwebserver_ev_flex",
+                "digi_truebizid_ev_flex",
+                "digi_securesite_flex",
+                "digi_truebizid_ev",
+                "digi_truebizid",
+                "digi_truebizid_ev_md",
+                "digi_truebizid_wc",
+                "digi_truebizid_md",
+                "digi_truebizid_md_wc",
+                "digi_sslwebserver_ev",
+                "digi_sslwebserver",
+                "digi_sslwebserver_wc",
+                "digi_sslwebserver_md_wc",
+                "digi_sslwebserver_flex"
+              ],
+              "EnrollmentFieldMapping": "Organization Phone"
+            }
+          }
+        }
+      },
+      "ValidityPeriod": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Validity Period (In Months)"
+        }
+      },
+      "ServerCount": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Server Count"
+        }
+      },
+      "CSR": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "None"
+        }
+      },
+      "DomainName": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "Certum"
+          ],
+          "EnrollmentFieldMapping": "Domain Name"
+        }
+      },
+      "WebServerType": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Web Server Type"
+        }
+      },
+      "DNSNames": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "digi_ssl_ev_basic",
+            "digi_ssl_ev_basic-EO",
+            "digi_securesite_ev_flex",
+            "digi_securesite_ev_flex-EO",
+            "digi_securesite_pro_ev_flex",
+            "digi_securesite_pro_ev_flex-EO",
+            "digi_securesite_pro_flex",
+            "digi_securesite_pro_flex-EO",
+            "digi_ssl_basic",
+            "digi_ssl_basic-EO",
+            "digi_securesite_flex",
+            "digi_securesite_flex-EO",
+            "digi_truebizid_flex",
+            "digi_truebizid_flex-EO",
+            "digi_truebizid_ev_flex",
+            "digi_truebizid_ev_flex-EO",
+            "digi_ssl_dv_geotrust_flex",
+            "digi_rapidssl",
+            "digi_rapidssl_wc",
+            "digi_ssl123_flex",
+            "digi_sslwebserver_flex",
+            "digi_sslwebserver_flex-EO",
+            "digi_sslwebserver_ev_flex",
+            "digi_sslwebserver_ev_flex-EO",
+            "positivemdcssl",
+            "positivemdcwildcard",
+            "sectigodvucc",
+            "sectigouccwildcard",
+            "sectigoevmdc",
+	    "sectigomdcwildcard",
+            "sectigomdc"
+          ],
+          "EnrollmentFieldMapping": "DNS Names Comma Separated",
+          "Array": true
+        }
+      },
+      "isCUOrder": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Is CU Order?"
+        }
+      },
+      "isRenewalOrder": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Is Renewal Order?"
+        }
+      },
+      "isTrialOrder": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Is Trial Order?"
+        }
+      },
+      "AdminContact": {
+        "FirstName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - First Name"
+          }
+        },
+        "LastName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Last Name"
+          }
+        },
+        "Phone": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Phone"
+          }
+        },
+        "Email": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Email"
+          }
+        },
+        "Title": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "symantec",
+              "digi_ssl_ev_basic",
+              "digi_sslwebserver_ev_flex",
+              "digi_truebizid_ev_flex",
+              "digi_securesite_pro_ev_flex",
+              "digi_securesite_ev_flex"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Title"
+          }
+        },
+        "OrganizationName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Organization Name"
+          }
+        },
+        "AddressLine1": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Address"
+          }
+        },
+        "City": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - City"
+          }
+        },
+        "Region": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Region"
+          }
+        },
+        "PostalCode": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Postal Code"
+          }
+        },
+        "Country": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Admin Contact - Country"
+          }
+        }
+      },
+      "TechnicalContact": {
+        "FirstName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - First Name"
+          }
+        },
+        "LastName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Last Name"
+          }
+        },
+        "SubjectFirstName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Subject First Name"
+          }
+        },
+        "SubjectLastName": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Subject Last Name"
+          }
+        },
+        "Phone": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Phone"
+          }
+        },
+        "Email": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Email"
+          }
+        },
+        "Title": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "symantec",
+              "digi_ssl_ev_basic",
+              "digi_securesite_ev_flex",
+              "digi_truebizid_ev_flex",
+              "digi_sslwebserver_ev_flex"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Title"
+          }
+        },
+        "AddressLine1": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Address"
+          }
+        },
+        "City": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - City"
+          }
+        },
+        "Region": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Region"
+          }
+        },
+        "PostalCode": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Postal Code"
+          }
+        },
+        "Country": {
+          "FieldData": {
+            "RequiredForProducts": [
+              "All"
+            ],
+            "EnrollmentFieldMapping": "Technical Contact - Country"
+          }
+        }
+      },
+      "ApproverEmail": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Approver Email"
+        }
+      },
+      "FileAuthDVIndicator": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "File Auth Domain Validation"
+        }
+      },
+      "CNAMEAuthDVIndicator": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "CName Auth Domain Validation"
+        }
+      },
+      "SignatureHashAlgorithm": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "All"
+          ],
+          "EnrollmentFieldMapping": "Signature Hash Algorithm"
+        }
+      }
+    }
   }
 ```
 
 - *Template Settings - See Configuration Instructional Video on how these work*
 ```
-  "Templates": {
-    "SMIME P12 no registrant interaction": {
-      "ProductID": "SMIME P12 no registrant interaction",
-      "Parameters": {
-        "CanSync":"false",
-        "ProductName": "SMIME P12 no registrant interaction",
-        "EnrollmentTemplate": "<InitiateInviteRequest><ValidityPeriod>1</ValidityPeriod><DateTime>DateTime.Now<\/DateTime><AdministratorEmailAddress>Enrollment|Admin Email<\/AdministratorEmailAddress><TemplateId>2166<\/TemplateId><CertContentFields><CN>CSR|CN<\/CN><C>CSR|C<\/C><O>CSR|O<\/O><OU><Field>CSR|OU<\/Field><\/OU><\/CertContentFields><RegistrantInfo><Password>Enrollment|Password<\/Password><ConfirmPassword>Enrollment|Password<\/ConfirmPassword><\/RegistrantInfo><Account><Name>KeyFactor<\/Name><Organisation>KeyFactor<\/Organisation><\/Account><\/InitiateInviteRequest>"
-      }
+   "Templates": {
+    "positivessl": {
+      "ProductID": "positivessl",
+      "Parameters": {}
     },
-    "QV Business SSL 10 SAN - Subscriber Interaction": {
-      "ProductID": "QV Business SSL 10 SAN - Subscriber Interaction",
-      "Parameters": {
-        "CanSync":"true",
-        "ProductName": "QV Business SSL 10 SAN - Subscriber Interaction",
-        "EnrollmentTemplate": "<RequestSSLCertRequest><DateTime>DateTime.Now</DateTime>\t<SubscriberEmailAddress>Enrollment|Subscriber Email</SubscriberEmailAddress>\t<CertFields>\t\t<CN>CSR|CN</CN>\t\t<O>CSR|O</O>\t\t<OU>\t\t\t<Field>CSR|OU</Field>\t\t</OU>\t\t<SAN>\t\t\t<Field>\t\t\t\t<Type>DnsName</Type>\t\t\t\t<Value>CSR|CN</Value>\t\t\t</Field>\t\t</SAN>\t</CertFields>\t<CSR>CSR|Raw</CSR>\t<CertificateType>2150</CertificateType>\t<Account>\t\t<Name>KeyFactor</Name>\t\t<Organisation>KeyFactor</Organisation>\t</Account>\t<ServerPlatform>Microsoft IIS7</ServerPlatform></RequestSSLCertRequest>"
-      }
+    "positiveevssl": {
+      "ProductID": "positiveevssl",
+      "Parameters": {}
     },
-    "QV Business SSL 10 SAN - Admin generate": {
-      "ProductID": "QV Business SSL 10 SAN - Admin generate",
-      "Parameters": {
-        "CanSync":"true",
-        "ProductName": "QV Business SSL 10 SAN - Admin generate",
-        "EnrollmentTemplate": "<RequestSSLCertRequest><DateTime>DateTime.Now</DateTime>\t<SubscriberEmailAddress>Enrollment|Subscriber Email</SubscriberEmailAddress>\t<CertFields>\t\t<CN>CSR|CN</CN>\t\t<O>CSR|O</O>\t\t<OU>\t\t\t<Field>CSR|OU</Field>\t\t</OU>\t\t<SAN>\t\t\t<Field>\t\t\t\t<Type>DnsName</Type>\t\t\t\t<Value>CSR|CN</Value>\t\t\t</Field>\t\t</SAN>\t</CertFields>\t\t<CertificateType>2151</CertificateType>\t<CSR>CSR|Raw</CSR>\t<Account>\t<Name>KeyFactor</Name>\t\t<Organisation>KeyFactor</Organisation>\t</Account>\t<ServerPlatform>Microsoft IIS7</ServerPlatform></RequestSSLCertRequest>"
-      }
+    "enterpriseproev": {
+      "ProductID": "enterpriseproev",
+      "Parameters": {}
     },
-    "SMIME Client Side Key Gen": {
-      "ProductID": "SMIME Client Side Key Gen",
-      "Parameters": {
-        "CanSync":"false",
-        "ProductName": "SMIME Client Side Key Gen",
-        "EnrollmentTemplate": "<InitiateInviteRequest><ValidityPeriod>1</ValidityPeriod><Country>Enrollment|Country<\/Country><DateTime>DateTime.Now<\/DateTime><AdministratorEmailAddress>Enrollment|Admin Email<\/AdministratorEmailAddress><TemplateId>2166<\/TemplateId><CertContentFields><CN>CSR|CN<\/CN><C>CSR|C<\/C><O>CSR|O<\/O><OU><Field>CSR|OU<\/Field><\/OU><\/CertContentFields><RegistrantInfo><Password>Enrollment|Password<\/Password><ConfirmPassword>Enrollment|Password<\/ConfirmPassword><\/RegistrantInfo><Account><Name>KeyFactor<\/Name><Organisation>KeyFactor<\/Organisation><\/Account><\/InitiateInviteRequest>"
-      }
+    "enterpriseproevmdc": {
+      "ProductID": "enterpriseproevmdc",
+      "Parameters": {}
+    },
+    "positivesslwildcard": {
+      "ProductID": "positivesslwildcard",
+      "Parameters": {}
+    },
+    "positivemdcssl": {
+      "ProductID": "positivemdcssl",
+      "Parameters": {}
+    },
+    "positivemdcwildcard": {
+      "ProductID": "positivemdcwildcard",
+      "Parameters": {}
+    },
+    "positiveevmdc": {
+      "ProductID": "positiveevmdc",
+      "Parameters": {}
+    },
+    "instantssl": {
+      "ProductID": "instantssl",
+      "Parameters": {}
+    },
+    "instantsslpro": {
+      "ProductID": "instantsslpro",
+      "Parameters": {}
+    },
+    "comodopremiumssl": {
+      "ProductID": "comodopremiumssl",
+      "Parameters": {}
+    },
+    "comodopremiumwildcard": {
+      "ProductID": "comodopremiumwildcard",
+      "Parameters": {}
+    },
+    "enterprisepro": {
+      "ProductID": "enterprisepro",
+      "Parameters": {}
+    },
+    "enterpriseprowc": {
+      "ProductID": "enterpriseprowc",
+      "Parameters": {}
+    },
+    "sectigossl": {
+      "ProductID": "sectigossl",
+      "Parameters": {}
+    },
+    "sectigodvucc": {
+      "ProductID": "sectigodvucc",
+      "Parameters": {}
+    },
+    "sectigoevssl": {
+      "ProductID": "sectigoevssl",
+      "Parameters": {}
+    },
+    "sectigoevmdc": {
+      "ProductID": "sectigoevmdc",
+      "Parameters": {}
+    },
+    "sectigoovssl": {
+      "ProductID": "sectigoovssl",
+      "Parameters": {}
+    },
+    "sectigomdc": {
+      "ProductID": "sectigomdc",
+      "Parameters": {}
+    },
+    "sectigomdcwildcard": {
+      "ProductID": "sectigomdcwildcard",
+      "Parameters": {}
+    },
+    "sectigoovwildcard": {
+      "ProductID": "sectigoovwildcard",
+      "Parameters": {}
+    },
+    "sectigowildcard": {
+      "ProductID": "sectigowildcard",
+      "Parameters": {}
+    },
+    "sectigouccwildcard": {
+      "ProductID": "sectigouccwildcard",
+      "Parameters": {}
+    },
+    "digi_ssl_ev_basic": {
+      "ProductID": "digi_ssl_ev_basic",
+      "Parameters": {}
+    },
+    "digi_ssl_ev_basic-EO": {
+      "ProductID": "digi_ssl_ev_basic-EO",
+      "Parameters": {}
+    },
+    "digi_securesite_ev_flex": {
+      "ProductID": "digi_securesite_ev_flex",
+      "Parameters": {}
+    },
+    "digi_securesite_ev_flex-EO": {
+      "ProductID": "digi_securesite_ev_flex-EO",
+      "Parameters": {}
+    },
+    "digi_securesite_pro_ev_flex": {
+      "ProductID": "digi_securesite_pro_ev_flex",
+      "Parameters": {}
+    },
+    "digi_securesite_pro_ev_flex-EO": {
+      "ProductID": "digi_securesite_pro_ev_flex-EO",
+      "Parameters": {}
+    },
+    "digi_securesite_pro_flex": {
+      "ProductID": "digi_securesite_pro_flex",
+      "Parameters": {}
+    },
+    "digi_securesite_pro_flex-EO": {
+      "ProductID": "digi_securesite_pro_flex-EO",
+      "Parameters": {}
+    },
+    "digi_ssl_basic": {
+      "ProductID": "digi_ssl_basic",
+      "Parameters": {}
+    },
+    "digi_ssl_basic-EO": {
+      "ProductID": "digi_ssl_basic-EO",
+      "Parameters": {}
+    },
+    "digi_securesite_flex": {
+      "ProductID": "digi_securesite_flex",
+      "Parameters": {}
+    },
+    "digi_securesite_flex-EO": {
+      "ProductID": "digi_securesite_flex-EO",
+      "Parameters": {}
+    },
+    "digi_truebizid_flex": {
+      "ProductID": "digi_truebizid_flex",
+      "Parameters": {}
+    },
+    "digi_truebizid_flex-EO": {
+      "ProductID": "digi_truebizid_flex-EO",
+      "Parameters": {}
+    },
+    "digi_truebizid_ev_flex": {
+      "ProductID": "digi_truebizid_ev_flex",
+      "Parameters": {}
+    },
+    "digi_truebizid_ev_flex-EO": {
+      "ProductID": "digi_truebizid_ev_flex-EO",
+      "Parameters": {}
+    },
+    "digi_ssl_dv_geotrust_flex": {
+      "ProductID": "digi_ssl_dv_geotrust_flex",
+      "Parameters": {}
+    },
+    "digi_rapidssl": {
+      "ProductID": "digi_rapidssl",
+      "Parameters": {}
+    },
+    "digi_rapidssl_wc": {
+      "ProductID": "digi_rapidssl_wc",
+      "Parameters": {}
+    },
+    "digi_ssl123_flex": {
+      "ProductID": "digi_ssl123_flex",
+      "Parameters": {}
+    },
+    "digi_sslwebserver_flex": {
+      "ProductID": "digi_sslwebserver_flex",
+      "Parameters": {}
+    },
+    "digi_sslwebserver_flex-EO": {
+      "ProductID": "digi_sslwebserver_flex-EO",
+      "Parameters": {}
+    },
+    "digi_sslwebserver_ev_flex": {
+      "ProductID": "digi_sslwebserver_ev_flex",
+      "Parameters": {}
+    },
+    "digi_sslwebserver_ev_flex-EO": {
+      "ProductID": "digi_sslwebserver_ev_flex-EO",
+      "Parameters": {}
     }
   }
 ```
@@ -195,11 +1172,11 @@ the CA.  Without the imported configuration, the service will fail to start.
 ```
   "CertificateManagers": null,
   "GatewayRegistration": {
-    "LogicalName": "Quovadis",
+    "LogicalName": "SSLStore",
     "GatewayCertificate": {
       "StoreName": "CA",
       "StoreLocation": "LocalMachine",
-      "Thumbprint": "fac5470a60d04b90ce947ebbf11b5f3fe9b275ae"
+      "Thumbprint": "339cdd57cfd5b141169b615ff31428782d1da639"
     }
   }
 ```
@@ -217,7 +1194,7 @@ the CA.  Without the imported configuration, the service will fail to start.
 
 ### Template Installation
 
-1) Command Server - Copy and Unzip the Template Setup Files located [Here](https://github.com/Keyfactor/Quovadis-AnyGateway/raw/main/TemplateSetup.zip)
+1) Command Server - Copy and Unzip the Template Setup Files located [Here](https://github.com/Keyfactor/sslstore-cagateway/raw/main/TemplateSetup.zip)
 2) Command Server - Change the Security Settings in the CaTemplateUserSecurity.csv file to the appropriate settings for Test or Production
 3) Command Server - Run the CreateTemplate.ps1 file and choose option 1 to create the templates in active directory.
    *Note if you get errors the security is likely wrong and you will have to add the security manually according to Keyfactor standards* 
@@ -229,7 +1206,7 @@ the CA.  Without the imported configuration, the service will fail to start.
 1) Gateway Server - Start the Keyfactor Gateway Service
 2) Run the set Gateway command similar to below
 ```ps
-Set-KeyfactorGatewayConfig -LogicalName "Quovadis" -FilePath [path to json file] -PublishAd
+Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file] -PublishAd
 ```
 3) Command Server - Import the certificate authority in Keyfactor Portal 
 
