@@ -21,11 +21,11 @@
   },
   "CAConnection": {
     "SSLStoreURL": "https://sandbox-wbapi.thesslstore.com",
-    "PartnerCode": "82919874",
-    "AuthToken": "B76586C757D226D874D9DB82388EF70E",
+    "PartnerCode": "SomePartnerCodeFromSSLStore",
+    "AuthToken": "SomeAuthTokenFromSSLStore",
     "KeyfactorApiUrl": "https://kftrain.keyfactor.lab/KeyfactorAPI",
-    "KeyfactorApiUserId": "Administrator",
-    "KeyfactorApiPassword": "Password1",
+    "KeyfactorApiUserId": "SomeKeyfactorAPIUser",
+    "KeyfactorApiPassword": "SomeKeyfactorAPIPassword",
     "PageSize": "25",
     "SampleRequest": {
       "AuthRequest": {
