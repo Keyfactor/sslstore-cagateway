@@ -3,6 +3,8 @@
 
 SSLStore is a certificate reseller with access to over 80 certificate products. Vendors include Digicert and Sectigo and all their acquired companies such as RapidSSL, Geotrust and Comodo. There is one API for all these products so a single integration to the SSLStore can get you instant access to over 80 Certificate products.
 
+## Production Ready
+
 <!-- add integration specific information below -->
 *** 
 # Getting Started
@@ -31,7 +33,7 @@ SSLStore is a certificate reseller with access to over 80 certificate products. 
 To begin, you must have the CA Gateway Service 21.3.2 installed and operational before attempting to configure the SSLStore Any Gateway plugin. This integration was tested with Keyfactor 8.7.0.0.
 To install the gateway follow these instructions.
 
-1) Gateway Server - run the installation .msi located [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/AnyGateway-21.3.2.msi)
+1) Gateway Server - run the installation .msi obtained from Keyfactor
 
 2) Gateway Server - If you have the rights to install the database (usually in a Non SQL PAAS Environment) Using Powershell, run the following command to create the gateway database.
 
@@ -112,7 +114,7 @@ the CA.  Without the imported configuration, the service will fail to start.
    ```
    <alias alias="CAConnector" type="Keyfactor.AnyGateway.SslStore.SslStoreCaProxy, SslStoreCaProxy"/>
    ```
-2) Gateway Server - Install the Intermediate Comodo Certificate that was received from SSLStore [Here](https://github.com/Keyfactor/sslstore-cagateway/raw/main/SSLStoreIntermediate.cer)
+2) Gateway Server - Install the Intermediate Comodo Certificate that was received from SSLStore
 
 3) Gateway Server - Take the sample Config.json located [Here](https://github.com/Keyfactor/quovadis-cagateway/raw/main/SampleConfig.json) and make the following modifications
 
