@@ -1,0 +1,56 @@
+{
+  "Id": 999999,
+  "CommonName": "sectigouccwildcard",
+  "TemplateName": "sectigouccwildcard",
+  "Oid": "Replace OID",
+  "KeySize": "2048",
+  "KeyType": "RSA",
+  "ForestRoot": "keyfactor.lab",
+  "FriendlyName": "Replace Friendly Name",
+  "KeyRetention": "AfterExpiration",
+  "KeyRetentionDays": 55,
+  "KeyArchival": false,
+  "EnrollmentFields": [
+    {
+      "Id": 769154,
+      "Name": "DNS Names Comma Separated",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+    {
+      "Id": 769161,
+      "Name": "Admin Contact - Email",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+    {
+      "Id": 769178,
+      "Name": "Approver Email",
+      "Options": [
+        ""
+      ],
+      "DataType": 1
+    },
+    {
+      "Id": 769184,
+      "Name": "Validity Period (In Months)",
+      "Options": [
+        "12",
+        "24",
+        "36",
+        "48",
+        "60"
+      ],
+      "DataType": 2
+    }
+  ],
+  "AllowedEnrollmentTypes": 7,
+  "TemplateRegexes": [],
+  "UseAllowedRequesters": false,
+  "AllowedRequesters": [],
+  "DisplayName": "Replace Display Name"
+}

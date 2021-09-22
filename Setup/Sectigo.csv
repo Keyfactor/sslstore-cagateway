@@ -1,0 +1,25 @@
+ProductName,Code,Vendor,Product Type,IsMultiDomain
+PositiveSSL,positivessl,COMODO,DV,No
+PositiveSSL EV,positiveevssl,COMODO,EV,No
+PositiveSSL EV Multi-Domain,positiveevmdc,COMODO,EV,Yes
+PositiveSSL Multi-Domain,positivemdcssl,COMODO,DV,Yes
+PositiveSSL Multi-Domain Wildcard,positivemdcwildcard,COMODO,DV,Yes
+PositiveSSL Wildcard,positivesslwildcard,COMODO,DV,No
+Sectigo DV Multi-Domain/UCC,sectigodvucc,SECTIGO,DV,Yes
+Sectigo DV Multi-Domain/UCC Wildcard,sectigouccwildcard,SECTIGO,DV,Yes
+Sectigo DV SSL,sectigossl,SECTIGO,DV,No
+Sectigo DV Wildcard,sectigowildcard,SECTIGO,DV,No
+Sectigo Enterprise SSL Pro,enterprisepro,COMODO,OV,No
+Sectigo Enterprise SSL Pro Wildcard,enterpriseprowc,COMODO,OV,No
+Sectigo Enterprise SSL Pro with EV,enterpriseproev,COMODO,EV,No
+Sectigo Enterprise SSL Pro with EV Multi-Domain,enterpriseproevmdc,COMODO,EV,Yes
+Sectigo EV Multi-Domain/UCC,sectigoevmdc,SECTIGO,EV,Yes
+Sectigo EV SSL,sectigoevssl,SECTIGO,EV,No
+Sectigo InstantSSL (OV),instantssl,COMODO,OV,No
+Sectigo InstantSSL Premium (OV),comodopremiumssl,COMODO,OV,No
+Sectigo InstantSSL Premium Wildcard (OV),comodopremiumwildcard,COMODO,OV,No
+Sectigo InstantSSL Pro (OV),instantsslpro,COMODO,OV,No
+Sectigo OV Multi-Domain Wildcard,sectigomdcwildcard,SECTIGO,OV,Yes
+Sectigo OV Multi-Domain/UCC,sectigomdc,SECTIGO,OV,Yes
+Sectigo OV SSL,sectigoovssl,SECTIGO,OV,No
+Sectigo OV Wildcard ,sectigoovwildcard,SECTIGO,OV,No

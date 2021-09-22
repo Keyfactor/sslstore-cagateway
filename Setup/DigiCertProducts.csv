@@ -1,0 +1,25 @@
+﻿ProductName,Code,Vendor,ProductType,IsMultiDomain
+Existing Org - DigiCert Basic EV ,digi_ssl_ev_basic-EO,DIGICERT,EV,No
+Existing Org - DigiCert Basic OV ,digi_ssl_basic-EO,DIGICERT,OV,No
+Existing Org - DigiCert Secure Site EV ,digi_securesite_ev_flex-EO,DIGICERT,EV,No
+Existing Org - DigiCert Secure Site OV ,digi_securesite_flex-EO,DIGICERT,OV,No
+Existing Org - DigiCert Secure Site Pro EV,digi_securesite_pro_ev_flex-EO,DIGICERT,EV,No
+Existing Org - DigiCert Secure Site Pro SSL ,digi_securesite_pro_flex-EO,DIGICERT,OV,No
+Existing Org - GeoTrust DV SSL Certificate,digi_ssl_dv_geotrust_flex,DIGICERT,DV,No
+Existing Org - GeoTrust True BusinessID,digi_truebizid_flex-EO,DIGICERT,OV,No
+Existing Org - GeoTrust True BusinessID EV,digi_truebizid_ev_flex-EO,DIGICERT,EV,No
+Existing Org - Thawte SSL123 DV,digi_ssl123_flex,DIGICERT,DV,No
+Existing Org - Thawte Web Server EV,digi_sslwebserver_ev_flex-EO,DIGICERT,EV,No
+Existing Org - Thawte Web Server OV,digi_sslwebserver_flex-EO,DIGICERT,OV,No
+New Org - DigiCert Basic EV,digi_ssl_ev_basic,DIGICERT,EV,No
+New Org - DigiCert Basic OV ,digi_ssl_basic,DIGICERT,OV,No
+New Org - DigiCert Secure Site EV,digi_securesite_ev_flex,DIGICERT,EV,No
+New Org - DigiCert Secure Site OV,digi_securesite_flex,DIGICERT,OV,No
+New Org - DigiCert Secure Site Pro EV,digi_securesite_pro_ev_flex,DIGICERT,EV,No
+New Org - DigiCert Secure Site Pro SSL ,digi_securesite_pro_flex,DIGICERT,OV,No
+New Org - GeoTrust True BusinessID,digi_truebizid_flex,DIGICERT,OV,No
+New Org - GeoTrust True BusinessID EV,digi_truebizid_ev_flex,DIGICERT,EV,No
+New Org - Thawte Web Server ,digi_sslwebserver_flex,DIGICERT,OV,No
+New Org - Thawte Web Server EV ,digi_sslwebserver_ev_flex,DIGICERT,EV,No
+RapidSSL Standard DV,digi_rapidssl,DIGICERT,DV,No
+RapidSSL Wildcard DV,digi_rapidssl_wc,DIGICERT,DV,No
