@@ -130,6 +130,9 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                         var batchResponse =
                             JsonConvert.DeserializeObject<List<NewOrderResponse>>(
                                 await resp.Content.ReadAsStringAsync());
+
+                        Logger.Trace($"Order List JSON {JsonConvert.SerializeObject(batchResponse)}");
+                        
                         var batchCount = batchResponse.Count;
 
                         Logger.Trace($"Processing {batchCount} items in batch");

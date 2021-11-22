@@ -16,6 +16,7 @@ using Keyfactor.AnyGateway.SslStore.Client;
 using Keyfactor.AnyGateway.SslStore.Client.Models;
 using Keyfactor.AnyGateway.SslStore.Interfaces;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace Keyfactor.AnyGateway.SslStore
 {
@@ -37,15 +38,19 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public override int Revoke(string caRequestId, string hexSerialNumber, uint revocationReason)
         {
+            Logger.Trace("Entering Revoke Method");
             var revokeOrderRequest = _requestManager.GetRevokeOrderRequest(caRequestId.Split('-')[0]);
-
+            Logger.Trace($"Revoke Request JSON {JsonConvert.SerializeObject(revokeOrderRequest)}");
             try
             {
                 var requestResponse =
                     Task.Run(async () => await SslStoreClient.SubmitRevokeCertificateAsync(revokeOrderRequest)).Result;
-
+                
+                Logger.Trace($"Revoke Response JSON {JsonConvert.SerializeObject(requestResponse)}");
+                
                 if (requestResponse.AuthResponse.IsError)
                 {
+                    Logger.Trace($"Revoke Error Occurred");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
@@ -85,6 +90,7 @@ namespace Keyfactor.AnyGateway.SslStore
             switch (enrollmentType)
             {
                 case RequestUtilities.EnrollmentType.New:
+                    Logger.Trace("Entering New Enrollment");
                     //If they renewed an expired cert it gets here and this will not be supported
                     if (!productInfo.ProductParameters.ContainsKey("PriorCertSN"))
                     {
@@ -93,10 +99,12 @@ namespace Keyfactor.AnyGateway.SslStore
 
                         if (productInfo.ProductParameters.ContainsKey("DNS Names Comma Separated"))
                         { 
+                            Logger.Trace($"DNS Comma Separated {productInfo.ProductParameters["DNS Names Comma Separated"]}");
                             arrayProducts = productInfo.ProductParameters["DNS Names Comma Separated"].Split(new char[] { ',' }); 
                         }
                         if(productInfo.ProductParameters.ContainsKey("Approver Email"))
                         {
+                            Logger.Trace($"Approver Email {productInfo.ProductParameters["Approver Email"]}");
                             arrayApproverEmails = productInfo.ProductParameters["Approver Email"].Split(new char[] { ',' });
                         }
 
@@ -105,12 +113,18 @@ namespace Keyfactor.AnyGateway.SslStore
                         {
                             
                             var emailApproverRequest = _requestManager.GetEmailApproverListRequest(productInfo.ProductID, product);
+                            Logger.Trace($"Email Approver Request JSON {JsonConvert.SerializeObject(emailApproverRequest)}");
+
                             var emailApproverResponse = Task.Run(async () =>
                                 await SslStoreClient.SubmitEmailApproverRequestAsync(emailApproverRequest));
-                            
+
+                            Logger.Trace($"Email Approver Response JSON {JsonConvert.SerializeObject(emailApproverResponse)}");
+
                             var emailValidation=ValidateEmails(emailApproverResponse, arrayApproverEmails, productInfo,count);
 
-                            if(emailValidation.Length>0)
+                            Logger.Trace($"Email Validation Result {emailValidation}");
+
+                            if (emailValidation.Length>0)
                             {
                                 return new EnrollmentResult
                                 {
@@ -124,9 +138,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
                         enrollmentRequest =
                             _requestManager.GetEnrollmentRequest(csr, productInfo, ConfigManager, false);
+
+                        Logger.Trace($"enrollmentRequest JSON {JsonConvert.SerializeObject(enrollmentRequest)}");
+
                         enrollmentResponse =
                             Task.Run(async () => await SslStoreClient.SubmitNewOrderRequestAsync(enrollmentRequest))
                                 .Result;
+
+                        Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
                     }
                     else
                     {
@@ -139,26 +158,59 @@ namespace Keyfactor.AnyGateway.SslStore
 
                     break;
                 case RequestUtilities.EnrollmentType.Renew:
+                    Logger.Trace("Entering Renew Enrollment");
+
                     priorCert = certificateDataReader.GetCertificateRecord(
                         DataConversion.HexToBytes(productInfo.ProductParameters["PriorCertSN"]));
+
+                    Logger.Trace($"Prior Cert {priorCert}");
+
                     orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
+
+                    Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+
                     orderStatusResponse = Task.Run(async () =>
                         await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
+
+                    Logger.Trace($"orderStatusResponse JSON {JsonConvert.SerializeObject(orderStatusResponse)}");
+
                     var renewRequest = _requestManager.GetRenewalRequest(orderStatusResponse, csr);
+
+                    Logger.Trace($"renewRequest JSON {JsonConvert.SerializeObject(renewRequest)}");
+
                     enrollmentResponse =
                         Task.Run(async () => await SslStoreClient.SubmitRenewRequestAsync(renewRequest)).Result;
+
+                    Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
+                    
                     break;
                 case RequestUtilities.EnrollmentType.Reissue:
+                    Logger.Trace("Entering Reissue Enrollment");
+
                     priorCert =
                         certificateDataReader.GetCertificateRecord(
                             DataConversion.HexToBytes(productInfo.ProductParameters["PriorCertSN"]));
+
+                    Logger.Trace($"Prior Cert {priorCert}");
+
                     orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
+
+                    Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+
                     orderStatusResponse = Task.Run(async () =>
                         await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
+
+                    Logger.Trace($"orderStatusResponse JSON {JsonConvert.SerializeObject(orderStatusResponse)}");
+
                     reIssueRequest = _requestManager.GetReIssueRequest(orderStatusResponse, csr, false);
+
+                    Logger.Trace($"reIssueRequest JSON {JsonConvert.SerializeObject(reIssueRequest)}");
 
                     enrollmentResponse =
                         Task.Run(async () => await SslStoreClient.SubmitReIssueRequestAsync(reIssueRequest)).Result;
+
+                    Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
+
                     break;
             }
 
@@ -191,8 +243,13 @@ namespace Keyfactor.AnyGateway.SslStore
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
 
             var orderStatusRequest = _requestManager.GetOrderStatusRequest(caRequestId);
+
+            Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+
             var certResponse = Task
                 .Run(async () => await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
+
+            Logger.Trace($"certResponse JSON {JsonConvert.SerializeObject(certResponse)}");
 
             Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
             return new CAConnectorCertificate
@@ -226,9 +283,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 //Get a list of orgs from digicert via SslStore API
                 var organizationListRequest = _requestManager.GetOrganizationListRequest();
+
+                Logger.Trace($"organizationListRequest JSON {JsonConvert.SerializeObject(organizationListRequest)}");
+
                 var orgListResponse = Task
                     .Run(async () => await SslStoreClient.SubmitOrganizationListAsync(organizationListRequest)).Result;
-                
+
+                Logger.Trace($"orgListResponse JSON {JsonConvert.SerializeObject(orgListResponse)}");
+
                 foreach (var template in templates.GetConsumingEnumerable(cancelToken))
                 {
                     var currentTemplate = (Template) template;
@@ -240,6 +302,8 @@ namespace Keyfactor.AnyGateway.SslStore
                     //If it is an existing org template then fill dropdown with existing organizations
                     if(currentTemplate.CommonName.EndsWith("-EO"))
                     {
+                        Logger.Trace($"Ends in -EO Common Name {currentTemplate.CommonName}");
+
                         var orgIdField = currentTemplate.EnrollmentFields.Find(e => e.Name == "Organization ID");
                         var currentId = orgIdField.Id;
                         currentTemplate.EnrollmentFields.Remove(orgIdField);
