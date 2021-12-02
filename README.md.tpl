@@ -3,8 +3,6 @@
 
 {{ description }}
 
-## {{ status | capitalize }} Ready
-
 <!-- add integration specific information below -->
 *** 
 
