@@ -9,7 +9,6 @@ SSLStore is a certificate reseller with access to over 80 certificate products. 
 This repository contains an AnyGateway CA Connector, which is a plugin to the Keyfactor AnyGateway. AnyGateway CA Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
 
 ---
-## integration_type = ca-gateway
 
 *** 
 
@@ -1240,6 +1239,4 @@ Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file]
 
 ### License
 [Apache](https://apache.org/licenses/LICENSE-2.0)
-
-
 
