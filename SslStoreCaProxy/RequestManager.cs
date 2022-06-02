@@ -205,8 +205,8 @@ namespace Keyfactor.AnyGateway.SslStore
                 ValidityPeriod = orderData.Validity,
                 ServerCount = orderData.ServerCount,
                 IsRenewalOrder = true,
-                FileAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.FileName != null),
-                CnameAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.DnsName != null),
+                FileAuthDvIndicator = orderData.OrderStatus?.DomainAuthVettingStatus?.Exists(x => x.FileName != null),
+                CnameAuthDvIndicator = orderData.OrderStatus?.DomainAuthVettingStatus?.Exists(x => x.DnsName != null),
                 Csr = csr
             };
         }
