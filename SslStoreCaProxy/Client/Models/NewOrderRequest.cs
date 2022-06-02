@@ -59,10 +59,10 @@ namespace Keyfactor.AnyGateway.SslStore.Client.Models
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string EmailLanguageCode { get; set; }
 
-        [JsonProperty("FileAuthDVIndicator")] public bool FileAuthDvIndicator { get; set; }
+        [JsonProperty("FileAuthDVIndicator")] public bool? FileAuthDvIndicator { get; set; }
 
         [JsonProperty("CNAMEAuthDVIndicator", NullValueHandling = NullValueHandling.Ignore)]
-        public bool CnameAuthDvIndicator { get; set; }
+        public bool? CnameAuthDvIndicator { get; set; }
 
         [JsonProperty("HTTPSFileAuthDVIndicator", NullValueHandling = NullValueHandling.Ignore)]
         public bool HttpsFileAuthDvIndicator { get; set; }

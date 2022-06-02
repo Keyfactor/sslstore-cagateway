@@ -28,8 +28,8 @@ namespace Keyfactor.AnyGateway.SslStore.Interfaces
         long ReserveSanCount { get; set; }
         bool AddInstallationSupport { get; set; }
         string EmailLanguageCode { get; set; }
-        bool FileAuthDvIndicator { get; set; }
-        bool CnameAuthDvIndicator { get; set; }
+        bool? FileAuthDvIndicator { get; set; }
+        bool? CnameAuthDvIndicator { get; set; }
         bool HttpsFileAuthDvIndicator { get; set; }
         string SignatureHashAlgorithm { get; set; }
         bool CertTransparencyIndicator { get; set; }
