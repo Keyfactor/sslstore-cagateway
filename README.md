@@ -13,7 +13,7 @@ This repository contains an AnyGateway CA Connector, which is a plugin to the Ke
 *** 
 
 # Compatibility
-This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework
+This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework.
 
 # Getting Started
 
