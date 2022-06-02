@@ -1,12 +1,20 @@
 # SSLStore
-## Ca-gateway
 
 SSLStore is a certificate reseller with access to over 80 certificate products. Vendors include Digicert and Sectigo and all their acquired companies such as RapidSSL, Geotrust and Comodo. There is one API for all these products so a single integration to the SSLStore can get you instant access to over 80 Certificate products.
 
-## Production Ready
+#### Integration status: Production - Ready for use in production environments.
 
-<!-- add integration specific information below -->
+## About the Keyfactor AnyGateway CA Connector
+
+This repository contains an AnyGateway CA Connector, which is a plugin to the Keyfactor AnyGateway. AnyGateway CA Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
+
+---
+
 *** 
+
+# Compatibility
+This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework
+
 # Getting Started
 
 ## Integration Overview
@@ -1231,3 +1239,4 @@ Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file]
 
 ### License
 [Apache](https://apache.org/licenses/LICENSE-2.0)
+

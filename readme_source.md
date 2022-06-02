@@ -1,12 +1,8 @@
-# {{ name }}
-## {{ integration_type | capitalize }}
-
-{{ description }}
-
-## {{ status | capitalize }} Ready
-
-<!-- add integration specific information below -->
 *** 
+
+# Compatibility
+This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework
+
 # Getting Started
 
 ## Integration Overview
