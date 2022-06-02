@@ -3,7 +3,7 @@ on: [workflow_dispatch, push, pull_request]
 
 jobs:
   call-create-github-release-workflow:
-    uses: Keyfactor/actions/.github/workflows/github-release.yml@main
+    uses: Keyfactor/actions/.github/workflows/github-release.yml@fix-isrelease
 
   call-dotnet-build-and-release-workflow:
     needs: [call-create-github-release-workflow]
