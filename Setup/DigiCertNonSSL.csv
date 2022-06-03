@@ -1,8 +1,0 @@
-﻿ProductName,Code,Vendor,Product Type,IsMultiDomain
-DigiCert Code Signing Certificate,digi_csc,DIGICERT,OV,No
-DigiCert EV Code Signing Certificate,digi_csc_ev,DIGICERT,EV,No
-DigiCert S/MIME Certificate,digi_client_premium,DIGICERT,DV,No
-DigiCert Document SO (2000) Certificate,digi_doc_signing_org_2000,DIGICERT,OV,No
-DigiCert Document SO (5000) Certificate,digi_doc_signing_org_5000,DIGICERT,OV,No
-DigiCert Document SI (500) Certificate,digi_doc_signing_ind_500,DIGICERT,IV,No
-DigiCert Document SI (2000) Certificate,digi_doc_signing_ind_2000,DIGICERT,IV,No
