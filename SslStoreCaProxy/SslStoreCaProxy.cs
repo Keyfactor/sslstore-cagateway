@@ -382,17 +382,18 @@ namespace Keyfactor.AnyGateway.SslStore
                             {
                                 var cert = new X509Certificate2(Encoding.UTF8.GetBytes(fileContent));
                                 serialNumber = cert.SerialNumber;
+                                
+                                blockingBuffer.Add(new CAConnectorCertificate
+                                {
+                                    CARequestID =
+                                        $"{orderStatusResponse.TheSslStoreOrderId}-{serialNumber}",
+                                    Certificate = fileContent,
+                                    SubmissionDate = Convert.ToDateTime(orderStatusResponse.PurchaseDate),
+                                    Status = certStatus,
+                                    ProductID = $"{orderStatusResponse.ProductCode}"
+                                });
                             }
 
-                            blockingBuffer.Add(new CAConnectorCertificate
-                            {
-                                CARequestID =
-                                    $"{orderStatusResponse.TheSslStoreOrderId}-{serialNumber}",
-                                Certificate = fileContent,
-                                SubmissionDate = Convert.ToDateTime(orderStatusResponse.PurchaseDate),
-                                Status = certStatus,
-                                ProductID = $"{orderStatusResponse.ProductCode}"
-                            });
                         }
                     }
                     catch (OperationCanceledException)
