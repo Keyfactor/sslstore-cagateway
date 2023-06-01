@@ -177,7 +177,7 @@ namespace Keyfactor.AnyGateway.SslStore
                     break;
                 case "Initial":
                 case "Pending":
-                    returnStatus = PKIConstants.Microsoft.RequestDisposition.PENDING;
+                    returnStatus = PKIConstants.Microsoft.RequestDisposition.EXTERNAL_VALIDATION;
                     break;
                 case "Cancelled":
                     returnStatus = PKIConstants.Microsoft.RequestDisposition.REVOKED;

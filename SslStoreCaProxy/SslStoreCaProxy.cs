@@ -39,7 +39,7 @@ namespace Keyfactor.AnyGateway.SslStore
         public override int Revoke(string caRequestId, string hexSerialNumber, uint revocationReason)
         {
             Logger.Trace("Entering Revoke Method");
-            var revokeOrderRequest = _requestManager.GetRevokeOrderRequest(caRequestId.Split('-')[0]);
+            var revokeOrderRequest = _requestManager.GetRevokeOrderRequest(caRequestId.Split('|')[0]);
             Logger.Trace($"Revoke Request JSON {JsonConvert.SerializeObject(revokeOrderRequest)}");
             try
             {
@@ -157,7 +157,7 @@ namespace Keyfactor.AnyGateway.SslStore
                     }
 
                     break;
-                case RequestUtilities.EnrollmentType.Renew:
+                case RequestUtilities.EnrollmentType.Renew: 
                     Logger.Trace("Entering Renew Enrollment");
 
                     priorCert = certificateDataReader.GetCertificateRecord(
@@ -165,7 +165,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                     Logger.Trace($"Prior Cert {priorCert}");
 
-                    orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
+                    orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('|')[0]);
 
                     Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
 
@@ -193,7 +193,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                     Logger.Trace($"Prior Cert {priorCert}");
 
-                    orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
+                    orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('|')[0]);
 
                     Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
 
@@ -232,8 +232,9 @@ namespace Keyfactor.AnyGateway.SslStore
             Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
             return new EnrollmentResult
             {
-                Status = 9, //success
-                StatusMessage = $"Order Successfully Created With Order Number {newOrderResponse?.TheSslStoreOrderId}"
+                CARequestID=$"{newOrderResponse.TheSslStoreOrderId}|{newOrderResponse.PartnerOrderId}",
+                Status = (int)PKIConstants.Microsoft.RequestDisposition.EXTERNAL_VALIDATION, //success
+                StatusMessage = $"Order Successfully Created With Order Number {newOrderResponse?.VendorOrderId}"
             };
         }
 
@@ -277,128 +278,131 @@ namespace Keyfactor.AnyGateway.SslStore
 
             try
             {
-                //Get a list of all the templates need ones for Existing Orgs so we can fill the org dropdown
-                var templates=new BlockingCollection<ITemplate>(100);
-                KeyfactorClient.SubmitQueryTemplatesRequestAsync(templates, cancelToken, _requestManager);
-
-                //Get a list of orgs from digicert via SslStore API
-                var organizationListRequest = _requestManager.GetOrganizationListRequest();
-
-                Logger.Trace($"organizationListRequest JSON {JsonConvert.SerializeObject(organizationListRequest)}");
-
-                var orgListResponse = Task
-                    .Run(async () => await SslStoreClient.SubmitOrganizationListAsync(organizationListRequest)).Result;
-
-                Logger.Trace($"orgListResponse JSON {JsonConvert.SerializeObject(orgListResponse)}");
-
-                foreach (var template in templates.GetConsumingEnumerable(cancelToken))
+                if (certificateAuthoritySyncInfo.DoFullSync)
                 {
-                    var currentTemplate = (Template) template;
-                    if (cancelToken.IsCancellationRequested)
-                    {
-                        Logger.Error("Synchronize was canceled Getting Templates");
-                        break;
-                    }
-                    //If it is an existing org template then fill dropdown with existing organizations
-                    if(currentTemplate.CommonName.EndsWith("-EO"))
-                    {
-                        Logger.Trace($"Ends in -EO Common Name {currentTemplate.CommonName}");
+                    //Get a list of all the templates need ones for Existing Orgs so we can fill the org dropdown
+                    var templates = new BlockingCollection<ITemplate>(100);
+                    KeyfactorClient.SubmitQueryTemplatesRequestAsync(templates, cancelToken, _requestManager);
 
-                        var orgIdField = currentTemplate.EnrollmentFields.Find(e => e.Name == "Organization ID");
-                        var currentId = orgIdField.Id;
-                        currentTemplate.EnrollmentFields.Remove(orgIdField);
-                        var newOrgField = new EnrollmentField();
-                        newOrgField.Id = currentId;
-                        newOrgField.Name = "Organization ID";
-                        newOrgField.DataType = 2;
-                        List<string> optionsList = new List<string>();
-                        var orgLength = 0;
-                        foreach(Organization org in orgListResponse.OrganizationList)
+                    //Get a list of orgs from digicert via SslStore API
+                    var organizationListRequest = _requestManager.GetOrganizationListRequest();
+
+                    Logger.Trace($"organizationListRequest JSON {JsonConvert.SerializeObject(organizationListRequest)}");
+
+                    var orgListResponse = Task
+                        .Run(async () => await SslStoreClient.SubmitOrganizationListAsync(organizationListRequest)).Result;
+
+                    Logger.Trace($"orgListResponse JSON {JsonConvert.SerializeObject(orgListResponse)}");
+
+                    foreach (var template in templates.GetConsumingEnumerable(cancelToken))
+                    {
+                        var currentTemplate = (Template)template;
+                        if (cancelToken.IsCancellationRequested)
                         {
-                            var newOrgName = org.Name + " (" + org.TssOrganizationId + ") " + org.City + "-" + org.Country.ToUpper();
-                            orgLength = orgLength + newOrgName.Length +1;
-                            if(orgLength<=950 && org.Status=="active") 
-                            {
-                                optionsList.Add(newOrgName);
-                            }
+                            Logger.Error("Synchronize was canceled Getting Templates");
+                            break;
                         }
-                        newOrgField.Options.AddRange(optionsList);
-                        currentTemplate.EnrollmentFields.Insert(0, newOrgField);
-
-                        var updateOrgResponse = Task.Run(async () => await KeyfactorClient.SubmitUpdateTemplateAsync(currentTemplate)).Result;
-                        
-                    }
-                }
-
-                
-                var certs = new BlockingCollection<INewOrderResponse>(100);
-                SslStoreClient.SubmitQueryOrderRequestAsync(certs, cancelToken, _requestManager);
-
-                foreach (var currentResponseItem in certs.GetConsumingEnumerable(cancelToken))
-                {
-                    if (cancelToken.IsCancellationRequested)
-                    {
-                        Logger.Error("Synchronize was canceled.");
-                        break;
-                    }
-
-                    try
-                    {
-                        Logger.Trace($"Took Certificate ID {currentResponseItem?.TheSslStoreOrderId} from Queue");
-
-                        //Call GetOrderStatus since this has the most recent status, query order is updated periodically
-                        var orderStatusRequest = _requestManager.GetOrderStatusRequest(currentResponseItem?.TheSslStoreOrderId);
-                        var orderStatusResponse = Task.Run(async () =>
-                            await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
-
-                        var fileContent = "";
-                        var certStatus =
-                            _requestManager.MapReturnStatus(orderStatusResponse.OrderStatus.MajorStatus);
-
-                        if (certStatus == Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.ISSUED))
+                        //If it is an existing org template then fill dropdown with existing organizations
+                        if (currentTemplate.CommonName.EndsWith("-EO"))
                         {
-                            var downloadCertificateRequest =
-                                _requestManager.GetCertificateRequest(orderStatusResponse.TheSslStoreOrderId);
-                            var certResponse =
-                                Task.Run(async () =>
-                                        await SslStoreClient.SubmitDownloadCertificateAsync(
-                                            downloadCertificateRequest))
-                                    .Result;
-                            if (!certResponse.AuthResponse.IsError)
+                            Logger.Trace($"Ends in -EO Common Name {currentTemplate.CommonName}");
+
+                            var orgIdField = currentTemplate.EnrollmentFields.Find(e => e.Name == "Organization ID");
+                            var currentId = orgIdField.Id;
+                            currentTemplate.EnrollmentFields.Remove(orgIdField);
+                            var newOrgField = new EnrollmentField();
+                            newOrgField.Id = currentId;
+                            newOrgField.Name = "Organization ID";
+                            newOrgField.DataType = 2;
+                            List<string> optionsList = new List<string>();
+                            var orgLength = 0;
+                            foreach (Organization org in orgListResponse.OrganizationList)
                             {
-                                fileContent = _requestManager.GetCertificateContent(certResponse.Certificates,
-                                    orderStatusResponse.CommonName);
+                                var newOrgName = org.Name + " (" + org.TssOrganizationId + ") " + org.City + "-" + org.Country.ToUpper();
+                                orgLength = orgLength + newOrgName.Length + 1;
+                                if (orgLength <= 950 && org.Status == "active")
+                                {
+                                    optionsList.Add(newOrgName);
+                                }
                             }
-                        }
+                            newOrgField.Options.AddRange(optionsList);
+                            currentTemplate.EnrollmentFields.Insert(0, newOrgField);
 
+                            var updateOrgResponse = Task.Run(async () => await KeyfactorClient.SubmitUpdateTemplateAsync(currentTemplate)).Result;
 
-                        //Keyfactor sync only seems to work when there is a valid cert and I can only get Active valid certs from SSLStore
-                        if (certStatus == Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.ISSUED) &&
-                            fileContent.Length > 0 || certStatus ==
-                            Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.REVOKED))
-                        {
-                            string serialNumber="";
-                            if (fileContent.Length > 0)
-                            {
-                                var cert = new X509Certificate2(Encoding.UTF8.GetBytes(fileContent));
-                                serialNumber = cert.SerialNumber;
-                            }
-
-                            blockingBuffer.Add(new CAConnectorCertificate
-                            {
-                                CARequestID =
-                                    $"{orderStatusResponse.TheSslStoreOrderId}-{serialNumber}",
-                                Certificate = fileContent,
-                                SubmissionDate = Convert.ToDateTime(orderStatusResponse.PurchaseDate),
-                                Status = certStatus,
-                                ProductID = $"{orderStatusResponse.ProductCode}"
-                            });
                         }
                     }
-                    catch (OperationCanceledException)
+
+
+                    var certs = new BlockingCollection<INewOrderResponse>(100);
+                    SslStoreClient.SubmitQueryOrderRequestAsync(certs, cancelToken, _requestManager);
+
+                    foreach (var currentResponseItem in certs.GetConsumingEnumerable(cancelToken))
                     {
-                        Logger.Error("Synchronize was canceled.");
-                        break;
+                        if (cancelToken.IsCancellationRequested)
+                        {
+                            Logger.Error("Synchronize was canceled.");
+                            break;
+                        }
+
+                        try
+                        {
+                            Logger.Trace($"Took Certificate ID {currentResponseItem?.TheSslStoreOrderId} from Queue");
+
+                            //Call GetOrderStatus since this has the most recent status, query order is updated periodically
+                            var orderStatusRequest = _requestManager.GetOrderStatusRequest(currentResponseItem?.TheSslStoreOrderId);
+                            var orderStatusResponse = Task.Run(async () =>
+                                await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
+
+                            var fileContent = "";
+                            var certStatus =
+                                _requestManager.MapReturnStatus(orderStatusResponse.OrderStatus.MajorStatus);
+
+                            if (certStatus == Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.ISSUED))
+                            {
+                                var downloadCertificateRequest =
+                                    _requestManager.GetCertificateRequest(orderStatusResponse.TheSslStoreOrderId);
+                                var certResponse =
+                                    Task.Run(async () =>
+                                            await SslStoreClient.SubmitDownloadCertificateAsync(
+                                                downloadCertificateRequest))
+                                        .Result;
+                                if (!certResponse.AuthResponse.IsError)
+                                {
+                                    fileContent = _requestManager.GetCertificateContent(certResponse.Certificates,
+                                        orderStatusResponse.CommonName);
+                                }
+                            }
+
+
+                            //Keyfactor sync only seems to work when there is a valid cert and I can only get Active valid certs from SSLStore
+                            if (certStatus == Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.ISSUED) &&
+                                fileContent.Length > 0)
+                            {
+                                string serialNumber = "";
+                                if (fileContent.Length > 0)
+                                {
+                                    var cert = new X509Certificate2(Encoding.UTF8.GetBytes(fileContent));
+                                    serialNumber = cert.SerialNumber;
+                                }
+
+                                
+                                blockingBuffer.Add(new CAConnectorCertificate
+                                {
+                                    CARequestID =
+                                        $"{orderStatusResponse.TheSslStoreOrderId}|{orderStatusResponse.PartnerOrderId}", //can't find uniqueid combo for renewals
+                                    Certificate = fileContent,
+                                    SubmissionDate = Convert.ToDateTime(orderStatusResponse.PurchaseDate),
+                                    Status = certStatus,
+                                    ProductID = $"{orderStatusResponse.ProductCode}"
+                                });
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            Logger.Error("Synchronize was canceled.");
+                            break;
+                        }
                     }
                 }
             }

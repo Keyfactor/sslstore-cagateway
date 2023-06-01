@@ -141,7 +141,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                             var r = batchResponse[batchItemsProcessed];
                             if (bc.TryAdd(r, 10, ct))
                             {
-                                Logger.Trace($"Added Certificate ID {r.TheSslStoreOrderId} to Queue for processing");
+                                Logger.Trace($"Added Certificate ID {r.CustomOrderId} to Queue for processing");
                                 batchItemsProcessed++;
                                 itemsProcessed++;
                                 Logger.Trace($"Processed {batchItemsProcessed} of {batchCount}");
