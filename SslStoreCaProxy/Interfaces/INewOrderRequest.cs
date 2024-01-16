@@ -18,6 +18,7 @@ namespace Keyfactor.AnyGateway.SslStore.Interfaces
         string WebServerType { get; set; }
         List<string> DnsNames { get; set; }
         bool IsCuOrder { get; set; }
+        bool? AutoWWW { get; set; }
         bool IsRenewalOrder { get; set; }
         string SpecialInstructions { get; set; }
         string RelatedTheSslStoreOrderId { get; set; }
