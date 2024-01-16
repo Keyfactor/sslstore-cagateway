@@ -835,6 +835,14 @@
           "EnrollmentFieldMapping": "Approver Email"
         }
       },
+      "AutoWWW": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "positivessl"
+          ],
+          "EnrollmentFieldMapping": "AutoWWW"
+        }
+      },
       "FileAuthDVIndicator": {
         "FieldData": {
           "RequiredForProducts": [
