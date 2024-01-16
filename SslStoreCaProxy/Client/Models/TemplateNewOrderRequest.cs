@@ -16,6 +16,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client.Models
         public WebServerType WebServerType { get; set; }
         [JsonProperty("DNSNames")] public DnsNames DnsNames { get; set; }
         [JsonProperty("isCUOrder")] public IsCuOrder IsCuOrder { get; set; }
+        [JsonProperty("AutoWWW", NullValueHandling = NullValueHandling.Ignore)] public AutoWWW AutoWWW { get; set; }
         [JsonProperty("isRenewalOrder")] public IsRenewalOrder IsRenewalOrder { get; set; }
         [JsonProperty("isTrialOrder")] public IsTrialOrder IsTrialOrder { get; set; }
         public TemplateAdminContact AdminContact { get; set; }
@@ -145,6 +146,12 @@ namespace Keyfactor.AnyGateway.SslStore.Client.Models
 
     [JsonObject("isCUOrder")]
     public class IsCuOrder
+    {
+        public FieldData FieldData { get; set; }
+    }
+
+    [JsonObject("AutoWWW")]
+    public class AutoWWW
     {
         public FieldData FieldData { get; set; }
     }

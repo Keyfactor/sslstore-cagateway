@@ -279,6 +279,7 @@ namespace Keyfactor.AnyGateway.SslStore
                         new JProperty("WebServerType", "Other"),
                         CreatePropertyFromTemplate("$.DNSNames", productInfo, newOrderRequest, true),
                         new JProperty("isCUOrder", false),
+                        CreatePropertyFromTemplate("$.AutoWWW", productInfo, newOrderRequest),
                         new JProperty("IsRenewalOrder", isRenewal),
                         new JProperty("isTrialOrder", false),
                         new JProperty("AdminContact",

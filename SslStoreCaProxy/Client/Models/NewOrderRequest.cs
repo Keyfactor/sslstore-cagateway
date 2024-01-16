@@ -36,6 +36,9 @@ namespace Keyfactor.AnyGateway.SslStore.Client.Models
 
         [JsonProperty("isCUOrder")] public bool IsCuOrder { get; set; }
 
+        [JsonProperty("AutoWWW", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? AutoWWW { get; set; }
+
         [JsonProperty("isRenewalOrder")] public bool IsRenewalOrder { get; set; }
 
         public string SpecialInstructions { get; set; }
