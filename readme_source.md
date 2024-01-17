@@ -1234,8 +1234,7 @@ Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file]
 3) Command Server - Import the certificate authority in Keyfactor Portal 
 
 ### Release 1.1 Notes
--Look over the AutoWWW field in both the Sample Config and readme.  If you want to include it for a template see the positivessl sample in the readme.  
-It is also needed as a new field in the SampleRequest Section of the file as shown in the readme.
+-Look over the AutoWWW field in both the Sample Config and readme.  If you want to include it for a template see the positivessl sample in the readme.  It is also needed as a new field in the SampleRequest Section of the file as shown in the readme.
 
 ***
 
