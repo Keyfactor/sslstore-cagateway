@@ -1,7 +1,11 @@
 {
-    "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
-    "integration_type": "ca-gateway",
-    "name": "SSLStore",
-    "status": "production",
-    "description": "SSLStore is a certificate reseller with access to over 80 certificate products. Vendors include Digicert and Sectigo and all their acquired companies such as RapidSSL, Geotrust and Comodo. There is one API for all these products so a single integration to the SSLStore can get you instant access to over 80 Certificate products."
+  "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
+  "integration_type": "ca-gateway",
+  "name": "SSLStore",
+  "status": "production",
+  "release_dir": "SslStoreCaProxy/bin/Release",
+  "support_level": "kf-supported",
+  "update_catalog": true,
+  "link_github": true,
+  "description": "SSLStore is a certificate reseller with access to over 80 certificate products. Vendors include Digicert and Sectigo and all their acquired companies such as RapidSSL, Geotrust and Comodo. There is one API for all these products so a single integration to the SSLStore can get you instant access to over 80 Certificate products."
 }
