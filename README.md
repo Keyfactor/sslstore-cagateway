@@ -4,11 +4,30 @@ SSLStore is a certificate reseller with access to over 80 certificate products. 
 
 #### Integration status: Production - Ready for use in production environments.
 
+
 ## About the Keyfactor AnyGateway CA Connector
 
 This repository contains an AnyGateway CA Connector, which is a plugin to the Keyfactor AnyGateway. AnyGateway CA Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
 
+
+## Support for SSLStore
+
+SSLStore is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com
+
+###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
+
+
 ---
+
+
+
+
+
+
+
+
+---
+
 
 *** 
 
@@ -959,6 +978,14 @@ the CA.  Without the imported configuration, the service will fail to start.
           }
         }
       },
+      "AutoWWW": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "positivessl"
+          ],
+          "EnrollmentFieldMapping": "AutoWWW"
+        }
+      },	  
       "ApproverEmail": {
         "FieldData": {
           "RequiredForProducts": [
@@ -1000,7 +1027,9 @@ the CA.  Without the imported configuration, the service will fail to start.
    "Templates": {
     "positivessl": {
       "ProductID": "positivessl",
-      "Parameters": {}
+      "Parameters": {
+	  	"AutoWWW": "True"
+	  }
     },
     "positiveevssl": {
       "ProductID": "positiveevssl",
@@ -1234,6 +1263,9 @@ the CA.  Without the imported configuration, the service will fail to start.
 Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file] -PublishAd
 ```
 3) Command Server - Import the certificate authority in Keyfactor Portal 
+
+### Release 1.1 Notes
+Look over the AutoWWW field in both the Sample Config and readme.  If you want to include it for a template see the positivessl sample in the readme.  It is also needed as a new field in the SampleRequest Section of the file as shown in the readme.
 
 ***
 

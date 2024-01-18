@@ -13,6 +13,7 @@ namespace Keyfactor.AnyGateway.SslStore.Interfaces
         DomainName DomainName { get; set; }
         WebServerType WebServerType { get; set; }
         DnsNames DnsNames { get; set; }
+        AutoWWW AutoWWW { get; set; }
         IsCuOrder IsCuOrder { get; set; }
         IsRenewalOrder IsRenewalOrder { get; set; }
         IsTrialOrder IsTrialOrder { get; set; }
