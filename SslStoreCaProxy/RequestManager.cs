@@ -35,13 +35,19 @@ namespace Keyfactor.AnyGateway.SslStore
             csr = PemUtilities.DERToPEM(Convert.FromBase64String(csr), PemUtilities.PemObjectType.CertRequest);
 
             var sampleRequest = JsonConvert.SerializeObject(configProvider.CAConnectionData["SampleRequest"]);
+
+            var settings = new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                MissingMemberHandling = MissingMemberHandling.Ignore
+            };
             var request = BuildNewOrderRequest(productInfo,
-                JsonConvert.DeserializeObject<TemplateNewOrderRequest>(sampleRequest), csr, isRenewalOrder);
+                JsonConvert.DeserializeObject<TemplateNewOrderRequest>(sampleRequest, settings), csr, isRenewalOrder);
 
             return request;
         }
 
-        public EmailApproverRequest GetEmailApproverListRequest(string productId,string productName)
+        public EmailApproverRequest GetEmailApproverListRequest(string productId, string productName)
         {
             return new EmailApproverRequest()
             {
@@ -81,8 +87,8 @@ namespace Keyfactor.AnyGateway.SslStore
                 ReissueEmail = orderData.AdminContact.Email,
                 ApproverEmails = orderData.ApproverEmail,
                 PreferEnrollmentLink = false,
-                FileAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null? false:orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.FileName != null),
-                CNameAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null ? false:orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.DnsName != null),
+                FileAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.FileName != null),
+                CNameAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.DnsName != null),
                 WebServerType = orderData.WebServerType
             };
         }
@@ -177,7 +183,7 @@ namespace Keyfactor.AnyGateway.SslStore
                     break;
                 case "Initial":
                 case "Pending":
-                    returnStatus = PKIConstants.Microsoft.RequestDisposition.PENDING;
+                    returnStatus = PKIConstants.Microsoft.RequestDisposition.EXTERNAL_VALIDATION;
                     break;
                 case "Cancelled":
                     returnStatus = PKIConstants.Microsoft.RequestDisposition.REVOKED;
@@ -245,9 +251,9 @@ namespace Keyfactor.AnyGateway.SslStore
                         new JProperty("AuthRequest",
                             new JObject(new JProperty("PartnerCode", _sslStoreCaProxy.PartnerCode),
                                 new JProperty("AuthToken", _sslStoreCaProxy.AuthenticationToken))),
-                        new JProperty("ProductCode", productInfo.ProductID.Replace("-EO","")),
+                        new JProperty("ProductCode", productInfo.ProductID.Replace("-EO", "")),
                         new JProperty("CustomOrderId", customOrderId),
-                        new JProperty("TSSOrganizationId", productInfo.ProductParameters.ContainsKey("Organization ID")?ExtractOrgId(productInfo.ProductParameters["Organization ID"]):null),
+                        new JProperty("TSSOrganizationId", productInfo.ProductParameters.ContainsKey("Organization ID") ? ExtractOrgId(productInfo.ProductParameters["Organization ID"]) : null),
                         new JProperty("OrganizationInfo",
                             new JObject(
                                 CreatePropertyFromTemplate("$.OrganizationInfo.OrganizationName", productInfo,
@@ -279,6 +285,7 @@ namespace Keyfactor.AnyGateway.SslStore
                         new JProperty("WebServerType", "Other"),
                         CreatePropertyFromTemplate("$.DNSNames", productInfo, newOrderRequest, true),
                         new JProperty("isCUOrder", false),
+                        CreatePropertyFromTemplate("$.AutoWWW", productInfo, newOrderRequest),
                         new JProperty("IsRenewalOrder", isRenewal),
                         new JProperty("isTrialOrder", false),
                         new JProperty("AdminContact",
@@ -345,7 +352,7 @@ namespace Keyfactor.AnyGateway.SslStore
         private JProperty CreatePropertyFromTemplate(string propertyPath, EnrollmentProductInfo productInfo,
             TemplateNewOrderRequest newOrderRequest, bool isArray = false)
         {
-            var template = (JObject) JToken.FromObject(newOrderRequest);
+            var template = (JObject)JToken.FromObject(newOrderRequest);
             var requiredForProducts =
                 new JArray(template.SelectTokens(propertyPath + ".FieldData.RequiredForProducts"));
             var enrollmentFieldName = template.SelectToken(propertyPath + ".FieldData.EnrollmentFieldMapping");
