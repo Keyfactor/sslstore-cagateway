@@ -1,7 +1,7 @@
 *** 
 
 # Compatibility
-This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework
+This AnyGateway is designed to be used with version 21.3.2 of the Keyfactor AnyGateway Framework.
 
 # Getting Started
 
@@ -947,6 +947,14 @@ the CA.  Without the imported configuration, the service will fail to start.
           }
         }
       },
+      "AutoWWW": {
+        "FieldData": {
+          "RequiredForProducts": [
+            "positivessl"
+          ],
+          "EnrollmentFieldMapping": "AutoWWW"
+        }
+      },	  
       "ApproverEmail": {
         "FieldData": {
           "RequiredForProducts": [
@@ -988,7 +996,9 @@ the CA.  Without the imported configuration, the service will fail to start.
    "Templates": {
     "positivessl": {
       "ProductID": "positivessl",
-      "Parameters": {}
+      "Parameters": {
+	  	"AutoWWW": "True"
+	  }
     },
     "positiveevssl": {
       "ProductID": "positiveevssl",
@@ -1222,6 +1232,9 @@ the CA.  Without the imported configuration, the service will fail to start.
 Set-KeyfactorGatewayConfig -LogicalName "SSLStore" -FilePath [path to json file] -PublishAd
 ```
 3) Command Server - Import the certificate authority in Keyfactor Portal 
+
+### Release 1.1 Notes
+Look over the AutoWWW field in both the Sample Config and readme.  If you want to include it for a template see the positivessl sample in the readme.  It is also needed as a new field in the SampleRequest Section of the file as shown in the readme.
 
 ***
 
