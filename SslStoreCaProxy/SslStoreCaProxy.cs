@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -22,6 +23,8 @@ namespace Keyfactor.AnyGateway.SslStore
 {
     public class SslStoreCaProxy : BaseCAConnector
     {
+        private const int FailedStatus = 30;
+
         private readonly RequestManager _requestManager;
 
         public SslStoreCaProxy()
@@ -35,8 +38,37 @@ namespace Keyfactor.AnyGateway.SslStore
         public string PartnerCode { get; set; }
         public string AuthenticationToken { get; set; }
         public int PageSize { get; set; }
+        private int RenewalWindowDays { get; set; } = Constants.DefaultRenewalWindowDays;
+
+        private FlowLogger NewFlow(string name)
+        {
+            return new FlowLogger(message => Logger.Trace(message), name);
+        }
+
+        private static T RunSync<T>(Func<Task<T>> operation)
+        {
+            //GetAwaiter().GetResult() surfaces the real exception instead of an AggregateException
+            return Task.Run(operation).GetAwaiter().GetResult();
+        }
+
+        private static EnrollmentResult Failure(string message)
+        {
+            return new EnrollmentResult
+            {
+                Status = FailedStatus,
+                StatusMessage = message
+            };
+        }
 
         public override int Revoke(string caRequestId, string hexSerialNumber, uint revocationReason)
+        {
+            using (var flow = NewFlow("Revoke"))
+            {
+                return RevokeInternal(flow, caRequestId, hexSerialNumber, revocationReason);
+            }
+        }
+
+        private int RevokeInternal(FlowLogger flow, string caRequestId, string hexSerialNumber, uint revocationReason)
         {
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
             Logger.Trace($"Entering Revoke Method: caRequestId={caRequestId ?? "(null)"}, hexSerialNumber={hexSerialNumber ?? "(null)"}, revocationReason={revocationReason}");
@@ -45,23 +77,26 @@ namespace Keyfactor.AnyGateway.SslStore
                 if (string.IsNullOrEmpty(caRequestId))
                 {
                     Logger.Error("Revoke called with null or empty caRequestId.");
+                    flow.Fail("ValidateInput", "caRequestId is null or empty");
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
 
                 var caRequestIdParts = caRequestId.Split('-');
                 Logger.Trace($"Revoke caRequestId split into {caRequestIdParts.Length} parts, using first part: {caRequestIdParts[0]}");
 
+                flow.Step("ValidateInput", $"order={caRequestIdParts[0]}, reason={revocationReason}");
                 var revokeOrderRequest = _requestManager.GetRevokeOrderRequest(caRequestIdParts[0]);
-                Logger.Trace($"Revoke Request JSON {JsonConvert.SerializeObject(revokeOrderRequest)}");
+                Logger.Trace($"Revoke Request JSON {LogRedactor.Json(revokeOrderRequest)}");
 
-                var requestResponse =
-                    Task.Run(async () => await SslStoreClient.SubmitRevokeCertificateAsync(revokeOrderRequest)).Result;
+                var requestResponse = flow.Step("SubmitRevokeToSslStore",
+                    () => RunSync(() => SslStoreClient.SubmitRevokeCertificateAsync(revokeOrderRequest)));
 
-                Logger.Trace($"Revoke Response JSON {JsonConvert.SerializeObject(requestResponse)}");
+                Logger.Trace($"Revoke Response JSON {LogRedactor.Json(requestResponse)}");
 
                 if (requestResponse == null)
                 {
                     Logger.Error("Revoke response is null.");
+                    flow.Fail("EvaluateResponse", "response is null");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
@@ -69,17 +104,20 @@ namespace Keyfactor.AnyGateway.SslStore
                 if (requestResponse.AuthResponse == null)
                 {
                     Logger.Error("Revoke response AuthResponse is null.");
+                    flow.Fail("EvaluateResponse", "AuthResponse is null");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
 
                 if (requestResponse.AuthResponse.IsError)
                 {
-                    Logger.Error($"Revoke Error Occurred: {JsonConvert.SerializeObject(requestResponse.AuthResponse)}");
+                    Logger.Error($"Revoke Error Occurred: {LogRedactor.Json(requestResponse.AuthResponse)}");
+                    flow.Fail("EvaluateResponse", "SSL Store returned an error");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
 
+                flow.Step("EvaluateResponse", "revoked");
                 Logger.Trace("Revoke completed successfully.");
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
 
@@ -87,6 +125,7 @@ namespace Keyfactor.AnyGateway.SslStore
             }
             catch (Exception e)
             {
+                flow.Fail("Revoke", e.Message);
                 Logger.Error($"An Error has occurred during the revoke process: {e.Message}\n{e.StackTrace}");
                 if (e.InnerException != null)
                     Logger.Error($"Inner exception: {e.InnerException.Message}\n{e.InnerException.StackTrace}");
@@ -109,226 +148,299 @@ namespace Keyfactor.AnyGateway.SslStore
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
             Logger.Trace($"Enroll called: enrollmentType={enrollmentType}, subject={subject ?? "(null)"}, ProductID={productInfo?.ProductID ?? "(null)"}");
 
+            using (var flow = NewFlow($"Enroll-{enrollmentType}"))
+            {
+                try
+                {
+                    return EnrollInternal(flow, certificateDataReader, csr, productInfo, enrollmentType);
+                }
+                catch (Exception ex)
+                {
+                    flow.Fail("Enroll", ex.Message);
+                    Logger.Error($"Enroll failed with exception: {ex.Message}\n{ex.StackTrace}");
+                    if (ex.InnerException != null)
+                        Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                    return Failure($"Enrollment failed: {ex.Message}");
+                }
+                finally
+                {
+                    Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
+                }
+            }
+        }
+
+        private EnrollmentResult EnrollInternal(FlowLogger flow, ICertificateDataReader certificateDataReader,
+            string csr, EnrollmentProductInfo productInfo, RequestUtilities.EnrollmentType requestedType)
+        {
+            if (productInfo == null)
+            {
+                flow.Fail("ValidateInput", "productInfo is null");
+                return Failure("Product info is null.");
+            }
+
+            if (productInfo.ProductParameters == null)
+            {
+                flow.Fail("ValidateInput", "ProductParameters is null");
+                return Failure("Product parameters are null.");
+            }
+
+            var hasPriorCert = productInfo.ProductParameters.TryGetValue("PriorCertSN", out var priorCertSn) &&
+                               !string.IsNullOrWhiteSpace(priorCertSn);
+            flow.Step("ValidateInput", $"product={productInfo.ProductID}, hasPriorCert={hasPriorCert}");
+            Logger.Trace($"Enroll ProductParameters keys: {string.Join(", ", productInfo.ProductParameters.Keys)}");
+
+            if (requestedType != RequestUtilities.EnrollmentType.New &&
+                requestedType != RequestUtilities.EnrollmentType.Renew &&
+                requestedType != RequestUtilities.EnrollmentType.Reissue)
+            {
+                flow.Fail("SelectPath", $"unsupported enrollment type {requestedType}");
+                return Failure($"Unknown enrollment type: {requestedType}");
+            }
+
+            if (!hasPriorCert && requestedType != RequestUtilities.EnrollmentType.New)
+            {
+                flow.Fail("ValidateInput", $"{requestedType} requires PriorCertSN");
+                return Failure($"PriorCertSN is required for {requestedType.ToString().ToLowerInvariant()}.");
+            }
+
+            // New, Renew and Reissue requests that carry a prior certificate are resolved from the prior certificate's
+            // order, not from what Command asked for, so shorter-lived (~200 day) certs under an active order are
+            // reissued instead of renewed (and an expired order is simply ordered again).
+            INewOrderResponse priorOrder = null;
+            var enrollmentType = requestedType;
+            if (hasPriorCert)
+            {
+                priorOrder = GetPriorOrder(flow, certificateDataReader, priorCertSn);
+                enrollmentType = ResolveEnrollmentType(flow, priorOrder, requestedType);
+            }
+            else
+            {
+                flow.Skip("EvaluateOrderValidity", "no PriorCertSN");
+            }
+
+            flow.Step("EnrollmentDecision", $"requested={requestedType}, resolved={enrollmentType}");
+
+            INewOrderResponse enrollmentResponse;
+            switch (enrollmentType)
+            {
+                case RequestUtilities.EnrollmentType.New:
+                    if (hasPriorCert)
+                        flow.Step("PriorCertNotReused", "ordering as a new certificate");
+                    var newOrderFailure = SubmitNewOrder(flow, csr, productInfo, out enrollmentResponse);
+                    if (newOrderFailure != null) return newOrderFailure;
+                    break;
+                case RequestUtilities.EnrollmentType.Renew:
+                    var renewRequest = flow.Step("BuildRenewalRequest",
+                        () => _requestManager.GetRenewalRequest(priorOrder, csr));
+                    Logger.Trace($"renewRequest JSON {LogRedactor.Json(renewRequest)}");
+                    enrollmentResponse = flow.Step("SubmitRenewalToSslStore",
+                        () => RunSync(() => SslStoreClient.SubmitRenewRequestAsync(renewRequest)));
+                    break;
+                default:
+                    var reIssueRequest = flow.Step("BuildReissueRequest",
+                        () => _requestManager.GetReIssueRequest(priorOrder, csr, false));
+                    Logger.Trace($"reIssueRequest JSON {LogRedactor.Json(reIssueRequest)}");
+                    enrollmentResponse = flow.Step("SubmitReissueToSslStore",
+                        () => RunSync(() => SslStoreClient.SubmitReIssueRequestAsync(reIssueRequest)));
+                    break;
+            }
+
+            Logger.Trace($"enrollmentResponse JSON {LogRedactor.Json(enrollmentResponse)}");
+
+            var result = GetEnrollmentResult(enrollmentResponse);
+            if (result.Status == FailedStatus)
+                flow.Fail("MapEnrollmentResult", $"SSL Store rejected the request: {result.StatusMessage}");
+            else
+                flow.Step("MapEnrollmentResult", $"status={result.Status}");
+            return result;
+        }
+
+        /// <summary>
+        ///     Validates approver emails and submits a brand new order. Returns a failure result, or null on success.
+        /// </summary>
+        private EnrollmentResult SubmitNewOrder(FlowLogger flow, string csr, EnrollmentProductInfo productInfo,
+            out INewOrderResponse enrollmentResponse)
+        {
+            enrollmentResponse = null;
+            var arrayProducts = Array.Empty<string>();
+            var arrayApproverEmails = Array.Empty<string>();
+
+            if (productInfo.ProductParameters.ContainsKey("DNS Names Comma Separated"))
+            {
+                Logger.Trace($"DNS Comma Separated {productInfo.ProductParameters["DNS Names Comma Separated"]}");
+                arrayProducts = productInfo.ProductParameters["DNS Names Comma Separated"].Split(',');
+            }
+
+            if (productInfo.ProductParameters.ContainsKey("Approver Email"))
+            {
+                Logger.Trace($"Approver Email {productInfo.ProductParameters["Approver Email"]}");
+                arrayApproverEmails = productInfo.ProductParameters["Approver Email"].Split(',');
+            }
+
+            Logger.Trace($"New Enrollment: {arrayProducts.Length} DNS products, {arrayApproverEmails.Length} approver emails");
+
+            var count = 1;
+            foreach (var product in arrayProducts)
+            {
+                Logger.Trace($"Validating email approver for product domain '{product}' (#{count})...");
+                var emailApproverRequest = _requestManager.GetEmailApproverListRequest(productInfo.ProductID, product);
+                Logger.Trace($"Email Approver Request JSON {LogRedactor.Json(emailApproverRequest)}");
+
+                var emailApproverResponse = Task.Run(async () =>
+                    await SslStoreClient.SubmitEmailApproverRequestAsync(emailApproverRequest));
+
+                var emailValidation = ValidateEmails(emailApproverResponse, arrayApproverEmails, productInfo, count);
+                Logger.Trace($"Email Validation Result {emailValidation}");
+
+                if (emailValidation.Length > 0)
+                {
+                    Logger.Warn($"Email validation failed: {emailValidation}");
+                    flow.Fail("ValidateApproverEmails", emailValidation);
+                    return Failure(emailValidation);
+                }
+
+                count++;
+            }
+
+            flow.Step("ValidateApproverEmails", $"{arrayProducts.Length} domain(s)");
+
+            var enrollmentRequest = flow.Step("BuildNewOrderRequest",
+                () => _requestManager.GetEnrollmentRequest(csr, productInfo, ConfigManager, false));
+            Logger.Trace($"enrollmentRequest JSON {LogRedactor.Json(enrollmentRequest)}");
+
+            enrollmentResponse = flow.Step("SubmitNewOrderToSslStore",
+                () => RunSync(() => SslStoreClient.SubmitNewOrderRequestAsync(enrollmentRequest)));
+            return null;
+        }
+
+        /// <summary>
+        ///     Finds the prior certificate in the gateway database and returns the current status of its SSL Store order.
+        /// </summary>
+        private INewOrderResponse GetPriorOrder(FlowLogger flow, ICertificateDataReader certificateDataReader,
+            string priorCertSn)
+        {
+            Logger.Trace($"PriorCertSN={priorCertSn}");
+            var priorCert = certificateDataReader.GetCertificateRecord(DataConversion.HexToBytes(priorCertSn));
+            if (priorCert == null)
+            {
+                Logger.Error($"Prior certificate not found for PriorCertSN={priorCertSn}");
+                throw new InvalidOperationException($"Prior certificate record not found for serial number '{priorCertSn}'.");
+            }
+
+            Logger.Trace($"Prior Cert CARequestID={priorCert.CARequestID ?? "(null)"}");
+            if (string.IsNullOrEmpty(priorCert.CARequestID))
+            {
+                Logger.Error("Prior certificate has null/empty CARequestID.");
+                throw new InvalidOperationException("Prior certificate has no CA Request ID.");
+            }
+
+            //CARequestID is {SSL Store order id}-{serial number}, several certificates can share an order
+            var orderId = priorCert.CARequestID.Split('-')[0];
+            flow.Step("ResolvePriorCertificate", $"order={orderId}");
+
+            var orderStatusRequest = _requestManager.GetOrderStatusRequest(orderId);
+            Logger.Trace($"orderStatusRequest JSON {LogRedactor.Json(orderStatusRequest)}");
+
+            var orderStatusResponse = flow.Step("FetchPriorOrderStatus",
+                () => RunSync(() => SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)), $"order={orderId}");
+            if (orderStatusResponse == null)
+            {
+                Logger.Error("Order status response is null for the prior order.");
+                throw new InvalidOperationException($"Failed to retrieve the status of prior order {orderId}.");
+            }
+
+            Logger.Trace($"orderStatusResponse JSON {LogRedactor.Json(orderStatusResponse)}");
+            return orderStatusResponse;
+        }
+
+        /// <summary>
+        ///     Resolves New / Renew / Reissue from the prior certificate's order expiry rather than the certificate's own
+        ///     expiration, so shorter-lived certificates under an active order are reissued, not renewed.
+        ///       explicit Reissue                          -> Reissue
+        ///       order beyond the renewal window           -> Reissue (under the active order)
+        ///       order inside the window, not yet expired  -> Renew
+        ///       order expired                             -> New
+        ///     Falls back to the certificate's expiration when the order expiry is unavailable. If nothing can be
+        ///     evaluated the requested type is kept.
+        /// </summary>
+        private RequestUtilities.EnrollmentType ResolveEnrollmentType(FlowLogger flow, INewOrderResponse priorOrder,
+            RequestUtilities.EnrollmentType requested)
+        {
+            if (requested == RequestUtilities.EnrollmentType.Reissue)
+            {
+                flow.Skip("EvaluateOrderValidity", "explicit Reissue request");
+                return requested;
+            }
+
             try
             {
-                if (productInfo == null)
+                if (TryGetOrderExpiry(priorOrder, out var orderExpiry, out var source))
                 {
-                    Logger.Error("Enroll called with null productInfo.");
-                    return new EnrollmentResult { Status = 30, StatusMessage = "Product info is null." };
+                    var daysLeft = (orderExpiry - DateTime.UtcNow).TotalDays;
+                    var resolved = daysLeft > RenewalWindowDays ? RequestUtilities.EnrollmentType.Reissue
+                        : daysLeft >= 0 ? RequestUtilities.EnrollmentType.Renew
+                        : RequestUtilities.EnrollmentType.New;
+                    flow.Step("EvaluateOrderValidity",
+                        $"orderExpiry={orderExpiry:dd-MMM-yyyy} ({source}), daysLeft={(int) daysLeft}, window={RenewalWindowDays}, result={resolved}");
+                    return resolved;
                 }
 
-                if (productInfo.ProductParameters == null)
+                if (TryParseSslStoreDate(priorOrder.CertificateEndDateInUtc, priorOrder.CertificateEndDate,
+                        out var certExpiry))
                 {
-                    Logger.Error("Enroll called with null ProductParameters.");
-                    return new EnrollmentResult { Status = 30, StatusMessage = "Product parameters are null." };
+                    var resolved = certExpiry >= DateTime.UtcNow ? RequestUtilities.EnrollmentType.Reissue : requested;
+                    flow.Step("EvaluateOrderValidity",
+                        $"order expiry unavailable, using certificate expiration {certExpiry:dd-MMM-yyyy}, result={resolved}");
+                    return resolved;
                 }
 
-                Logger.Trace($"Enroll ProductParameters keys: {string.Join(", ", productInfo.ProductParameters.Keys)}");
-
-                INewOrderResponse enrollmentResponse = null;
-                NewOrderRequest enrollmentRequest;
-                ReIssueRequest reIssueRequest;
-                CAConnectorCertificate priorCert;
-                OrderStatusRequest orderStatusRequest;
-                INewOrderResponse orderStatusResponse;
-
-                switch (enrollmentType)
-                {
-                    case RequestUtilities.EnrollmentType.New:
-                        Logger.Trace("Entering New Enrollment");
-                        //If they renewed an expired cert it gets here and this will not be supported
-                        if (!productInfo.ProductParameters.ContainsKey("PriorCertSN"))
-                        {
-                            string[] arrayProducts = Array.Empty<string>();
-                            string[] arrayApproverEmails = Array.Empty<string>();
-
-                            if (productInfo.ProductParameters.ContainsKey("DNS Names Comma Separated"))
-                            {
-                                Logger.Trace($"DNS Comma Separated {productInfo.ProductParameters["DNS Names Comma Separated"]}");
-                                arrayProducts = productInfo.ProductParameters["DNS Names Comma Separated"].Split(new char[] { ',' });
-                            }
-                            if (productInfo.ProductParameters.ContainsKey("Approver Email"))
-                            {
-                                Logger.Trace($"Approver Email {productInfo.ProductParameters["Approver Email"]}");
-                                arrayApproverEmails = productInfo.ProductParameters["Approver Email"].Split(new char[] { ',' });
-                            }
-
-                            Logger.Trace($"New Enrollment: {arrayProducts.Length} DNS products, {arrayApproverEmails.Length} approver emails");
-
-                            var count = 1;
-                            foreach (var product in arrayProducts)
-                            {
-                                Logger.Trace($"Validating email approver for product domain '{product}' (#{count})...");
-                                var emailApproverRequest = _requestManager.GetEmailApproverListRequest(productInfo.ProductID, product);
-                                Logger.Trace($"Email Approver Request JSON {JsonConvert.SerializeObject(emailApproverRequest)}");
-
-                                var emailApproverResponse = Task.Run(async () =>
-                                    await SslStoreClient.SubmitEmailApproverRequestAsync(emailApproverRequest));
-
-                                Logger.Trace($"Email Approver Response JSON {JsonConvert.SerializeObject(emailApproverResponse)}");
-
-                                var emailValidation = ValidateEmails(emailApproverResponse, arrayApproverEmails, productInfo, count);
-
-                                Logger.Trace($"Email Validation Result {emailValidation}");
-
-                                if (emailValidation.Length > 0)
-                                {
-                                    Logger.Warn($"Email validation failed: {emailValidation}");
-                                    return new EnrollmentResult
-                                    {
-                                        Status = 30, //failure
-                                        StatusMessage = emailValidation
-                                    };
-                                }
-                                count++;
-                            }
-
-
-                            Logger.Trace("Building enrollment request...");
-                            enrollmentRequest =
-                                _requestManager.GetEnrollmentRequest(csr, productInfo, ConfigManager, false);
-
-                            Logger.Trace($"enrollmentRequest JSON {JsonConvert.SerializeObject(enrollmentRequest)}");
-
-                            Logger.Trace("Submitting new order request...");
-                            enrollmentResponse =
-                                Task.Run(async () => await SslStoreClient.SubmitNewOrderRequestAsync(enrollmentRequest))
-                                    .Result;
-
-                            Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
-                        }
-                        else
-                        {
-                            Logger.Warn("Enrollment rejected: PriorCertSN present in New enrollment (expired cert renewal not supported).");
-                            return new EnrollmentResult
-                            {
-                                Status = 30, //failure
-                                StatusMessage = "You cannot renew and expired cert please perform an new enrollment."
-                            };
-                        }
-
-                        break;
-                    case RequestUtilities.EnrollmentType.Renew:
-                        Logger.Trace("Entering Renew Enrollment");
-
-                        if (!productInfo.ProductParameters.ContainsKey("PriorCertSN"))
-                        {
-                            Logger.Error("Renew enrollment missing required PriorCertSN parameter.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "PriorCertSN is required for renewal." };
-                        }
-
-                        Logger.Trace($"PriorCertSN={productInfo.ProductParameters["PriorCertSN"]}");
-                        priorCert = certificateDataReader.GetCertificateRecord(
-                            DataConversion.HexToBytes(productInfo.ProductParameters["PriorCertSN"]));
-
-                        if (priorCert == null)
-                        {
-                            Logger.Error($"Prior certificate not found for PriorCertSN={productInfo.ProductParameters["PriorCertSN"]}");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Prior certificate record not found." };
-                        }
-
-                        Logger.Trace($"Prior Cert CARequestID={priorCert.CARequestID ?? "(null)"}");
-
-                        if (string.IsNullOrEmpty(priorCert.CARequestID))
-                        {
-                            Logger.Error("Prior certificate has null/empty CARequestID.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Prior certificate has no CA Request ID." };
-                        }
-
-                        orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
-
-                        Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
-
-                        orderStatusResponse = Task.Run(async () =>
-                            await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
-
-                        if (orderStatusResponse == null)
-                        {
-                            Logger.Error("Order status response is null during renewal.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Failed to retrieve order status for renewal." };
-                        }
-
-                        Logger.Trace($"orderStatusResponse JSON {JsonConvert.SerializeObject(orderStatusResponse)}");
-
-                        var renewRequest = _requestManager.GetRenewalRequest(orderStatusResponse, csr);
-
-                        Logger.Trace($"renewRequest JSON {JsonConvert.SerializeObject(renewRequest)}");
-
-                        Logger.Trace("Submitting renewal request...");
-                        enrollmentResponse =
-                            Task.Run(async () => await SslStoreClient.SubmitRenewRequestAsync(renewRequest)).Result;
-
-                        Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
-
-                        break;
-                    case RequestUtilities.EnrollmentType.Reissue:
-                        Logger.Trace("Entering Reissue Enrollment");
-
-                        if (!productInfo.ProductParameters.ContainsKey("PriorCertSN"))
-                        {
-                            Logger.Error("Reissue enrollment missing required PriorCertSN parameter.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "PriorCertSN is required for reissue." };
-                        }
-
-                        Logger.Trace($"PriorCertSN={productInfo.ProductParameters["PriorCertSN"]}");
-                        priorCert =
-                            certificateDataReader.GetCertificateRecord(
-                                DataConversion.HexToBytes(productInfo.ProductParameters["PriorCertSN"]));
-
-                        if (priorCert == null)
-                        {
-                            Logger.Error($"Prior certificate not found for PriorCertSN={productInfo.ProductParameters["PriorCertSN"]}");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Prior certificate record not found." };
-                        }
-
-                        Logger.Trace($"Prior Cert CARequestID={priorCert.CARequestID ?? "(null)"}");
-
-                        if (string.IsNullOrEmpty(priorCert.CARequestID))
-                        {
-                            Logger.Error("Prior certificate has null/empty CARequestID.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Prior certificate has no CA Request ID." };
-                        }
-
-                        orderStatusRequest = _requestManager.GetOrderStatusRequest(priorCert.CARequestID.Split('-')[0]);
-
-                        Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
-
-                        orderStatusResponse = Task.Run(async () =>
-                            await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
-
-                        if (orderStatusResponse == null)
-                        {
-                            Logger.Error("Order status response is null during reissue.");
-                            return new EnrollmentResult { Status = 30, StatusMessage = "Failed to retrieve order status for reissue." };
-                        }
-
-                        Logger.Trace($"orderStatusResponse JSON {JsonConvert.SerializeObject(orderStatusResponse)}");
-
-                        reIssueRequest = _requestManager.GetReIssueRequest(orderStatusResponse, csr, false);
-
-                        Logger.Trace($"reIssueRequest JSON {JsonConvert.SerializeObject(reIssueRequest)}");
-
-                        Logger.Trace("Submitting reissue request...");
-                        enrollmentResponse =
-                            Task.Run(async () => await SslStoreClient.SubmitReIssueRequestAsync(reIssueRequest)).Result;
-
-                        Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
-
-                        break;
-                    default:
-                        Logger.Error($"Unknown enrollment type: {enrollmentType}");
-                        return new EnrollmentResult { Status = 30, StatusMessage = $"Unknown enrollment type: {enrollmentType}" };
-                }
-
-                return GetEnrollmentResult(enrollmentResponse);
+                flow.Skip("EvaluateOrderValidity", "neither order expiry nor certificate expiration available");
+                return requested;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Logger.Error($"Enroll failed with exception: {ex.Message}\n{ex.StackTrace}");
-                if (ex.InnerException != null)
-                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
-                return new EnrollmentResult { Status = 30, StatusMessage = $"Enrollment failed: {ex.Message}" };
+                flow.Fail("EvaluateOrderValidity", e.Message);
+                Logger.Warn($"Unable to evaluate the prior order, keeping requested type {requested}: {e.Message}");
+                return requested;
             }
+        }
+
+        private static bool TryGetOrderExpiry(INewOrderResponse order, out DateTime expiryUtc, out string source)
+        {
+            if (TryParseSslStoreDate(order.OrderExpiryDateInUtc, order.OrderExpiryDate, out expiryUtc))
+            {
+                source = "OrderExpiryDate";
+                return true;
+            }
+
+            //No order expiry returned, the order runs for its validity (in months) from the purchase date
+            if (order.Validity > 0 && TryParseSslStoreDate(order.PurchaseDateInUtc, order.PurchaseDate, out var purchased))
+            {
+                expiryUtc = purchased.AddMonths(order.Validity);
+                source = $"PurchaseDate+{order.Validity}mo";
+                return true;
+            }
+
+            source = null;
+            return false;
+        }
+
+        /// <summary>
+        ///     Parses a date as UTC, preferring the explicit UTC value. Culture-safe: tries invariant first.
+        /// </summary>
+        private static bool TryParseSslStoreDate(string utcValue, string localValue, out DateTime utc)
+        {
+            foreach (var value in new[] {utcValue, localValue})
+            {
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                const DateTimeStyles styles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+                if (DateTime.TryParse(value, CultureInfo.InvariantCulture, styles, out utc) ||
+                    DateTime.TryParse(value, CultureInfo.CurrentCulture, styles, out utc))
+                    return true;
+            }
+
+            utc = default(DateTime);
+            return false;
         }
 
         private EnrollmentResult GetEnrollmentResult(INewOrderResponse newOrderResponse)
@@ -376,6 +488,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public override CAConnectorCertificate GetSingleRecord(string caRequestId)
         {
+            using (var flow = NewFlow("GetSingleRecord"))
+            {
+                return GetSingleRecordInternal(flow, caRequestId);
+            }
+        }
+
+        private CAConnectorCertificate GetSingleRecordInternal(FlowLogger flow, string caRequestId)
+        {
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
             Logger.Trace($"GetSingleRecord called: caRequestId={caRequestId ?? "(null)"}");
 
@@ -384,6 +504,7 @@ namespace Keyfactor.AnyGateway.SslStore
                 if (string.IsNullOrEmpty(caRequestId))
                 {
                     Logger.Error("GetSingleRecord called with null/empty caRequestId.");
+                    flow.Fail("ValidateInput", "caRequestId is null or empty");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return new CAConnectorCertificate
                     {
@@ -394,17 +515,19 @@ namespace Keyfactor.AnyGateway.SslStore
                     };
                 }
 
+                flow.Step("ValidateInput", $"caRequestId={caRequestId}");
                 var orderStatusRequest = _requestManager.GetOrderStatusRequest(caRequestId);
 
-                Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+                Logger.Trace($"orderStatusRequest JSON {LogRedactor.Json(orderStatusRequest)}");
 
-                var certResponse = Task
-                    .Run(async () => await SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)).Result;
+                var certResponse = flow.Step("FetchOrderStatus",
+                    () => RunSync(() => SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)));
 
-                Logger.Trace($"certResponse JSON {JsonConvert.SerializeObject(certResponse)}");
+                Logger.Trace($"certResponse JSON {LogRedactor.Json(certResponse)}");
 
                 var majorStatus = certResponse?.OrderStatus?.MajorStatus;
                 Logger.Trace($"GetSingleRecord: MajorStatus={majorStatus ?? "(null)"}");
+                flow.Step("MapStatus", $"majorStatus={majorStatus ?? "(null)"}");
 
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                 return new CAConnectorCertificate
@@ -417,6 +540,7 @@ namespace Keyfactor.AnyGateway.SslStore
             }
             catch (Exception ex)
             {
+                flow.Fail("GetSingleRecord", ex.Message);
                 Logger.Error($"GetSingleRecord failed for caRequestId={caRequestId}: {ex.Message}\n{ex.StackTrace}");
                 if (ex.InnerException != null)
                     Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
@@ -443,6 +567,16 @@ namespace Keyfactor.AnyGateway.SslStore
             BlockingCollection<CAConnectorCertificate> blockingBuffer,
             CertificateAuthoritySyncInfo certificateAuthoritySyncInfo, CancellationToken cancelToken)
         {
+            using (var flow = NewFlow("Synchronize"))
+            {
+                SynchronizeInternal(flow, certificateDataReader, blockingBuffer, certificateAuthoritySyncInfo, cancelToken);
+            }
+        }
+
+        private void SynchronizeInternal(FlowLogger flow, ICertificateDataReader certificateDataReader,
+            BlockingCollection<CAConnectorCertificate> blockingBuffer,
+            CertificateAuthoritySyncInfo certificateAuthoritySyncInfo, CancellationToken cancelToken)
+        {
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
             Logger.Trace("Synchronize starting...");
 
@@ -453,22 +587,28 @@ namespace Keyfactor.AnyGateway.SslStore
                 var templates=new BlockingCollection<ITemplate>(100);
                 KeyfactorClient.SubmitQueryTemplatesRequestAsync(templates, cancelToken, _requestManager);
                 Logger.Trace("Template query submitted.");
+                flow.Step("QueryTemplates", "template query submitted");
 
                 //Get a list of orgs from digicert via SslStore API
                 Logger.Trace("Getting organization list request...");
                 var organizationListRequest = _requestManager.GetOrganizationListRequest();
 
-                Logger.Trace($"organizationListRequest JSON {JsonConvert.SerializeObject(organizationListRequest)}");
+                Logger.Trace($"organizationListRequest JSON {LogRedactor.Json(organizationListRequest)}");
 
                 Logger.Trace("Submitting organization list request to SslStore...");
                 var orgListResponse = Task
                     .Run(async () => await SslStoreClient.SubmitOrganizationListAsync(organizationListRequest)).Result;
 
-                Logger.Trace($"orgListResponse JSON {JsonConvert.SerializeObject(orgListResponse)}");
+                Logger.Trace($"orgListResponse JSON {LogRedactor.Json(orgListResponse)}");
 
                 if (orgListResponse == null)
                 {
                     Logger.Warn("Organization list response is null. Skipping template organization updates.");
+                    flow.Fail("FetchOrganizations", "response is null, template organization updates skipped");
+                }
+                else
+                {
+                    flow.Step("FetchOrganizations", $"count={orgListResponse.OrganizationList?.Count ?? 0}");
                 }
 
                 Logger.Trace("Beginning template enumeration...");
@@ -551,7 +691,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                             Logger.Trace($"Submitting template update for {currentTemplate.CommonName}...");
                             var updateOrgResponse = Task.Run(async () => await KeyfactorClient.SubmitUpdateTemplateAsync(currentTemplate)).Result;
-                            Logger.Trace($"Template update response for {currentTemplate.CommonName}: {JsonConvert.SerializeObject(updateOrgResponse)}");
+                            Logger.Trace($"Template update response for {currentTemplate.CommonName}: {LogRedactor.Json(updateOrgResponse)}");
                         }
                     }
                     catch (Exception ex)
@@ -563,6 +703,7 @@ namespace Keyfactor.AnyGateway.SslStore
                 }
 
                 Logger.Trace("Template processing complete. Beginning certificate sync...");
+                flow.Step("ProcessTemplates");
                 var certs = new BlockingCollection<INewOrderResponse>(100);
                 SslStoreClient.SubmitQueryOrderRequestAsync(certs, cancelToken, _requestManager);
                 Logger.Trace("Certificate query submitted.");
@@ -609,7 +750,7 @@ namespace Keyfactor.AnyGateway.SslStore
                             continue;
                         }
 
-                        Logger.Trace($"Order status response for {orderId}: OrderStatus={JsonConvert.SerializeObject(orderStatusResponse.OrderStatus)}, CommonName={orderStatusResponse.CommonName ?? "(null)"}, ProductCode={orderStatusResponse.ProductCode ?? "(null)"}");
+                        Logger.Trace($"Order status response for {orderId}: OrderStatus={LogRedactor.Json(orderStatusResponse.OrderStatus)}, CommonName={orderStatusResponse.CommonName ?? "(null)"}, ProductCode={orderStatusResponse.ProductCode ?? "(null)"}");
 
                         if (orderStatusResponse.OrderStatus == null)
                         {
@@ -654,7 +795,7 @@ namespace Keyfactor.AnyGateway.SslStore
                                 }
                                 else
                                 {
-                                    Logger.Warn($"Certificate download returned error for order {orderId}: {JsonConvert.SerializeObject(certResponse.AuthResponse)}");
+                                    Logger.Warn($"Certificate download returned error for order {orderId}: {LogRedactor.Json(certResponse.AuthResponse)}");
                                 }
                             }
                             catch (Exception dlEx)
@@ -722,10 +863,14 @@ namespace Keyfactor.AnyGateway.SslStore
                 }
 
                 Logger.Trace($"Synchronize certificate processing complete. Total processed={certCount}, Added to buffer={addedCount}, Errors={errorCount}");
+                var syncSummary = $"processed={certCount}, added={addedCount}, errors={errorCount}";
+                if (errorCount > 0) flow.Fail("SyncCertificates", syncSummary);
+                else flow.Step("SyncCertificates", syncSummary);
             }
             catch (AggregateException aggEx)
             {
                 var flatEx = aggEx.Flatten();
+                flow.Fail("Synchronize", flatEx.Message);
                 Logger.Error($"SslStore Synchronize Task failed! {flatEx.Message}");
                 foreach (var innerEx in flatEx.InnerExceptions)
                 {
@@ -736,6 +881,7 @@ namespace Keyfactor.AnyGateway.SslStore
             }
             catch (Exception ex)
             {
+                flow.Fail("Synchronize", ex.Message);
                 Logger.Error($"SslStore Synchronize unexpected error: {ex.Message}\n{ex.StackTrace}");
                 if (ex.InnerException != null)
                     Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
@@ -748,6 +894,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
 
         public override void Initialize(ICAConnectorConfigProvider configProvider)
+        {
+            using (var flow = NewFlow("Initialize"))
+            {
+                InitializeInternal(flow, configProvider);
+            }
+        }
+
+        private void InitializeInternal(FlowLogger flow, ICAConnectorConfigProvider configProvider)
         {
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
             Logger.Trace("Initialize called.");
@@ -780,8 +934,9 @@ namespace Keyfactor.AnyGateway.SslStore
                     throw new InvalidOperationException($"Missing required config key '{Constants.AuthToken}'.");
                 }
 
+                flow.Step("ValidateConfig", "required keys present");
                 PartnerCode = configProvider.CAConnectionData[Constants.PartnerCode]?.ToString();
-                Logger.Trace($"Initialize: PartnerCode={PartnerCode ?? "(null)"}");
+                Logger.Trace($"Initialize: PartnerCode {(string.IsNullOrEmpty(PartnerCode) ? "is empty" : "set (value masked)")}.");
 
                 AuthenticationToken = configProvider.CAConnectionData[Constants.AuthToken]?.ToString();
                 Logger.Trace("Initialize: AuthenticationToken set (value masked).");
@@ -796,12 +951,31 @@ namespace Keyfactor.AnyGateway.SslStore
                 PageSize = _requestManager.GetClientPageSize(configProvider);
                 Logger.Trace($"Initialize: PageSize={PageSize}");
 
+                flow.Step("CreateClients", $"pageSize={PageSize}");
+
+                RenewalWindowDays = Constants.DefaultRenewalWindowDays;
+                if (configProvider.CAConnectionData.TryGetValue(Constants.RenewalWindowDays, out var renewalWindow))
+                {
+                    if (int.TryParse(renewalWindow?.ToString(), out var renewalWindowDays) && renewalWindowDays > 0)
+                    {
+                        RenewalWindowDays = renewalWindowDays;
+                    }
+                    else
+                    {
+                        Logger.Warn($"{Constants.RenewalWindowDays} value '{renewalWindow}' could not be parsed or was <= 0, using default {Constants.DefaultRenewalWindowDays}.");
+                        flow.Fail("ReadRenewalWindowDays", $"invalid value, using default {Constants.DefaultRenewalWindowDays}");
+                    }
+                }
+
+                flow.Step("ReadRenewalWindowDays", $"days={RenewalWindowDays}");
+
                 ConfigManager = configProvider;
 
                 Logger.Trace("Initialize complete.");
             }
             catch (Exception ex)
             {
+                flow.Fail("Initialize", ex.Message);
                 Logger.Error($"Initialize failed: {ex.Message}\n{ex.StackTrace}");
                 throw;
             }
