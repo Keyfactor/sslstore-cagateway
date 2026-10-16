@@ -478,9 +478,12 @@ namespace Keyfactor.AnyGateway.SslStore
 
             Logger.Trace($"GetEnrollmentResult: Success, OrderId={newOrderResponse.TheSslStoreOrderId ?? "(null)"}");
             Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
+            //Most orders wait on domain validation (approver email, CNAME), so no certificate comes back yet. Return the
+            //order id so the gateway keeps the request and polls GetSingleRecord until it is issued.
             return new EnrollmentResult
             {
-                Status = 9, //success
+                Status = Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.EXTERNAL_VALIDATION),
+                CARequestID = newOrderResponse.TheSslStoreOrderId,
                 StatusMessage = $"Order Successfully Created With Order Number {newOrderResponse.TheSslStoreOrderId}"
             };
         }
@@ -515,8 +518,10 @@ namespace Keyfactor.AnyGateway.SslStore
                     };
                 }
 
-                flow.Step("ValidateInput", $"caRequestId={caRequestId}");
-                var orderStatusRequest = _requestManager.GetOrderStatusRequest(caRequestId);
+                //CARequestID is {order id} for a new order that is still pending, {order id}-{serial} once synced
+                var orderId = caRequestId.Split('-')[0];
+                flow.Step("ValidateInput", $"caRequestId={caRequestId}, order={orderId}");
+                var orderStatusRequest = _requestManager.GetOrderStatusRequest(orderId);
 
                 Logger.Trace($"orderStatusRequest JSON {LogRedactor.Json(orderStatusRequest)}");
 
@@ -527,15 +532,29 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 var majorStatus = certResponse?.OrderStatus?.MajorStatus;
                 Logger.Trace($"GetSingleRecord: MajorStatus={majorStatus ?? "(null)"}");
+                var status = _requestManager.MapReturnStatus(majorStatus);
                 flow.Step("MapStatus", $"majorStatus={majorStatus ?? "(null)"}");
+
+                var certificate = string.Empty;
+                if (status == Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.ISSUED))
+                    certificate = flow.Step("DownloadCertificate",
+                        () => DownloadCertificateContent(orderId, certResponse.CommonName));
+                else
+                    flow.Skip("DownloadCertificate", "order is not issued yet (pending validation)");
+
+                var purchaseDate = DateTime.UtcNow;
+                if (TryParseSslStoreDate(certResponse?.PurchaseDateInUtc, certResponse?.PurchaseDate, out var purchased))
+                    purchaseDate = purchased;
 
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                 return new CAConnectorCertificate
                 {
                     CARequestID = caRequestId,
-                    Certificate = string.Empty,
+                    Certificate = certificate,
                     CSR = string.Empty,
-                    Status = _requestManager.MapReturnStatus(majorStatus)
+                    Status = status,
+                    SubmissionDate = purchaseDate,
+                    ProductID = certResponse?.ProductCode
                 };
             }
             catch (Exception ex)
@@ -553,6 +572,22 @@ namespace Keyfactor.AnyGateway.SslStore
                     Status = Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED)
                 };
             }
+        }
+
+        /// <summary>
+        ///     Downloads the issued certificate for an order. Returns an empty string when SSL Store has none to give.
+        /// </summary>
+        private string DownloadCertificateContent(string orderId, string commonName)
+        {
+            var downloadRequest = _requestManager.GetCertificateRequest(orderId);
+            var response = RunSync(() => SslStoreClient.SubmitDownloadCertificateAsync(downloadRequest));
+            if (response?.AuthResponse == null || response.AuthResponse.IsError)
+            {
+                Logger.Warn($"Certificate download for order {orderId} returned no certificate: {LogRedactor.Json(response?.AuthResponse)}");
+                return string.Empty;
+            }
+
+            return _requestManager.GetCertificateContent(response.Certificates, commonName) ?? string.Empty;
         }
 
         [Obsolete]
