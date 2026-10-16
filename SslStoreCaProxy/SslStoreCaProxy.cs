@@ -48,6 +48,15 @@ namespace Keyfactor.AnyGateway.SslStore
             return caRequestId.Split(CaRequestIdSeparators)[0];
         }
 
+        //SSL Store answers HTTP 200 with AuthResponse.isError for problems such as the hourly API quota
+        private static string GetApiError(IAuthResponse authResponse)
+        {
+            if (authResponse == null || !authResponse.IsError) return null;
+            return authResponse.Message != null && authResponse.Message.Count > 0
+                ? authResponse.Message[0]
+                : "(no error message)";
+        }
+
         private FlowLogger NewFlow(string name)
         {
             return new FlowLogger(message => Logger.Trace(message), name);
@@ -549,6 +558,13 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 Logger.Trace($"certResponse JSON {LogRedactor.Json(certResponse)}");
 
+                var statusApiError = GetApiError(certResponse?.AuthResponse);
+                if (statusApiError != null)
+                {
+                    flow.Fail("FetchOrderStatus", statusApiError);
+                    Logger.Error($"SSL Store rejected the order status request for order {orderId}: {statusApiError}");
+                }
+
                 var majorStatus = certResponse?.OrderStatus?.MajorStatus;
                 Logger.Trace($"GetSingleRecord: MajorStatus={majorStatus ?? "(null)"}");
                 var status = _requestManager.MapReturnStatus(majorStatus);
@@ -655,7 +671,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 Logger.Trace($"orgListResponse JSON {LogRedactor.Json(orgListResponse)}");
 
-                if (orgListResponse == null)
+                var orgListError = GetApiError(orgListResponse?.AuthResponse);
+                if (orgListError != null)
+                {
+                    Logger.Error($"Organization list request failed: {orgListError}");
+                    flow.Fail("FetchOrganizations", orgListError);
+                    orgListResponse = null;
+                }
+                else if (orgListResponse == null)
                 {
                     Logger.Warn("Organization list response is null. Skipping template organization updates.");
                     flow.Fail("FetchOrganizations", "response is null, template organization updates skipped");
@@ -783,6 +806,15 @@ namespace Keyfactor.AnyGateway.SslStore
                             continue;
                         }
 
+                        var queryError = GetApiError(currentResponseItem.AuthResponse);
+                        if (queryError != null)
+                        {
+                            errorCount++;
+                            Logger.Error($"SSL Store rejected the order query: {queryError}");
+                            flow.Fail("QueryOrders", queryError);
+                            continue;
+                        }
+
                         var orderId = currentResponseItem.TheSslStoreOrderId ?? "(null)";
                         Logger.Trace($"Took Certificate ID {orderId} from Queue (item #{certCount})");
 
@@ -801,6 +833,14 @@ namespace Keyfactor.AnyGateway.SslStore
                         if (orderStatusResponse == null)
                         {
                             Logger.Warn($"Order status response is null for order {orderId}, skipping.");
+                            continue;
+                        }
+
+                        var statusError = GetApiError(orderStatusResponse.AuthResponse);
+                        if (statusError != null)
+                        {
+                            errorCount++;
+                            Logger.Error($"SSL Store rejected the order status request for order {orderId}: {statusError}");
                             continue;
                         }
 
