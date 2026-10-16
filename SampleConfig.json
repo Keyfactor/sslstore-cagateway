@@ -27,6 +27,7 @@
 		"KeyfactorApiUserId": "SomeKeyfactorAPIUser",
 		"KeyfactorApiPassword": "SomeKeyfactorAPIPassword",
 		"PageSize": "25",
+		"RenewalWindowDays": "30",
 		"SampleRequest": {
 			"AuthRequest": {
 				"PartnerCode": {
