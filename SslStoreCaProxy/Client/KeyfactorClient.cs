@@ -84,12 +84,12 @@ namespace Keyfactor.AnyGateway.SslStore.Client
             Logger.Trace("SubmitUpdateTemplateAsync called.");
             try
             {
-                Logger.Trace($"SubmitUpdateTemplateAsync Request JSON: {JsonConvert.SerializeObject(templateRequest)}");
+                Logger.Trace($"SubmitUpdateTemplateAsync Request JSON: {LogRedactor.Json(templateRequest)}");
                 using (var resp = await RestClient.PutAsync("/KeyfactorApi/Templates", new StringContent(
                     JsonConvert.SerializeObject(templateRequest), Encoding.ASCII, "application/json")))
                 {
                     var responseBody = await resp.Content.ReadAsStringAsync();
-                    Logger.Trace($"SubmitUpdateTemplateAsync Response StatusCode={resp.StatusCode}, Body={responseBody}");
+                    Logger.Trace($"SubmitUpdateTemplateAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
                     resp.EnsureSuccessStatusCode();
                     var templateResponse = JsonConvert.DeserializeObject<Template>(responseBody);
                     if (templateResponse == null)
