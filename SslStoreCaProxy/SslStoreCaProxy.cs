@@ -40,6 +40,14 @@ namespace Keyfactor.AnyGateway.SslStore
         public int PageSize { get; set; }
         private int RenewalWindowDays { get; set; } = Constants.DefaultRenewalWindowDays;
 
+        //CA request IDs are {order id}, {order id}-{serial}, or {order id}|{partner order id} from older gateway versions
+        private static readonly char[] CaRequestIdSeparators = {'-', '|'};
+
+        private static string GetOrderId(string caRequestId)
+        {
+            return caRequestId.Split(CaRequestIdSeparators)[0];
+        }
+
         private FlowLogger NewFlow(string name)
         {
             return new FlowLogger(message => Logger.Trace(message), name);
@@ -81,7 +89,7 @@ namespace Keyfactor.AnyGateway.SslStore
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
                 }
 
-                var caRequestIdParts = caRequestId.Split('-');
+                var caRequestIdParts = caRequestId.Split(CaRequestIdSeparators);
                 Logger.Trace($"Revoke caRequestId split into {caRequestIdParts.Length} parts, using first part: {caRequestIdParts[0]}");
 
                 flow.Step("ValidateInput", $"order={caRequestIdParts[0]}, reason={revocationReason}");
@@ -335,7 +343,7 @@ namespace Keyfactor.AnyGateway.SslStore
             }
 
             //CARequestID is {SSL Store order id}-{serial number}, several certificates can share an order
-            var orderId = priorCert.CARequestID.Split('-')[0];
+            var orderId = GetOrderId(priorCert.CARequestID);
             flow.Step("ResolvePriorCertificate", $"order={orderId}");
 
             var orderStatusRequest = _requestManager.GetOrderStatusRequest(orderId);
@@ -350,6 +358,17 @@ namespace Keyfactor.AnyGateway.SslStore
             }
 
             Logger.Trace($"orderStatusResponse JSON {LogRedactor.Json(orderStatusResponse)}");
+
+            //SSL Store answers 200 with isError for an unknown order, don't build a renewal from an empty response
+            if (orderStatusResponse.AuthResponse != null && orderStatusResponse.AuthResponse.IsError)
+            {
+                var reason = orderStatusResponse.AuthResponse.Message != null && orderStatusResponse.AuthResponse.Message.Count > 0
+                    ? orderStatusResponse.AuthResponse.Message[0]
+                    : "(no error message)";
+                flow.Fail("FetchPriorOrderStatus", reason);
+                throw new InvalidOperationException($"SSL Store could not return prior order '{orderId}' (CA request ID '{priorCert.CARequestID}'): {reason}");
+            }
+
             return orderStatusResponse;
         }
 
@@ -519,7 +538,7 @@ namespace Keyfactor.AnyGateway.SslStore
                 }
 
                 //CARequestID is {order id} for a new order that is still pending, {order id}-{serial} once synced
-                var orderId = caRequestId.Split('-')[0];
+                var orderId = GetOrderId(caRequestId);
                 flow.Step("ValidateInput", $"caRequestId={caRequestId}, order={orderId}");
                 var orderStatusRequest = _requestManager.GetOrderStatusRequest(orderId);
 
