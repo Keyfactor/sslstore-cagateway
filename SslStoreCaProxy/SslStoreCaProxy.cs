@@ -86,12 +86,12 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 flow.Step("ValidateInput", $"order={caRequestIdParts[0]}, reason={revocationReason}");
                 var revokeOrderRequest = _requestManager.GetRevokeOrderRequest(caRequestIdParts[0]);
-                Logger.Trace($"Revoke Request JSON {JsonConvert.SerializeObject(revokeOrderRequest)}");
+                Logger.Trace($"Revoke Request JSON {LogRedactor.Json(revokeOrderRequest)}");
 
                 var requestResponse = flow.Step("SubmitRevokeToSslStore",
                     () => RunSync(() => SslStoreClient.SubmitRevokeCertificateAsync(revokeOrderRequest)));
 
-                Logger.Trace($"Revoke Response JSON {JsonConvert.SerializeObject(requestResponse)}");
+                Logger.Trace($"Revoke Response JSON {LogRedactor.Json(requestResponse)}");
 
                 if (requestResponse == null)
                 {
@@ -111,7 +111,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 if (requestResponse.AuthResponse.IsError)
                 {
-                    Logger.Error($"Revoke Error Occurred: {JsonConvert.SerializeObject(requestResponse.AuthResponse)}");
+                    Logger.Error($"Revoke Error Occurred: {LogRedactor.Json(requestResponse.AuthResponse)}");
                     flow.Fail("EvaluateResponse", "SSL Store returned an error");
                     Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
                     return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED);
@@ -232,20 +232,20 @@ namespace Keyfactor.AnyGateway.SslStore
                 case RequestUtilities.EnrollmentType.Renew:
                     var renewRequest = flow.Step("BuildRenewalRequest",
                         () => _requestManager.GetRenewalRequest(priorOrder, csr));
-                    Logger.Trace($"renewRequest JSON {JsonConvert.SerializeObject(renewRequest)}");
+                    Logger.Trace($"renewRequest JSON {LogRedactor.Json(renewRequest)}");
                     enrollmentResponse = flow.Step("SubmitRenewalToSslStore",
                         () => RunSync(() => SslStoreClient.SubmitRenewRequestAsync(renewRequest)));
                     break;
                 default:
                     var reIssueRequest = flow.Step("BuildReissueRequest",
                         () => _requestManager.GetReIssueRequest(priorOrder, csr, false));
-                    Logger.Trace($"reIssueRequest JSON {JsonConvert.SerializeObject(reIssueRequest)}");
+                    Logger.Trace($"reIssueRequest JSON {LogRedactor.Json(reIssueRequest)}");
                     enrollmentResponse = flow.Step("SubmitReissueToSslStore",
                         () => RunSync(() => SslStoreClient.SubmitReIssueRequestAsync(reIssueRequest)));
                     break;
             }
 
-            Logger.Trace($"enrollmentResponse JSON {JsonConvert.SerializeObject(enrollmentResponse)}");
+            Logger.Trace($"enrollmentResponse JSON {LogRedactor.Json(enrollmentResponse)}");
 
             var result = GetEnrollmentResult(enrollmentResponse);
             if (result.Status == FailedStatus)
@@ -284,7 +284,7 @@ namespace Keyfactor.AnyGateway.SslStore
             {
                 Logger.Trace($"Validating email approver for product domain '{product}' (#{count})...");
                 var emailApproverRequest = _requestManager.GetEmailApproverListRequest(productInfo.ProductID, product);
-                Logger.Trace($"Email Approver Request JSON {JsonConvert.SerializeObject(emailApproverRequest)}");
+                Logger.Trace($"Email Approver Request JSON {LogRedactor.Json(emailApproverRequest)}");
 
                 var emailApproverResponse = Task.Run(async () =>
                     await SslStoreClient.SubmitEmailApproverRequestAsync(emailApproverRequest));
@@ -306,7 +306,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
             var enrollmentRequest = flow.Step("BuildNewOrderRequest",
                 () => _requestManager.GetEnrollmentRequest(csr, productInfo, ConfigManager, false));
-            Logger.Trace($"enrollmentRequest JSON {JsonConvert.SerializeObject(enrollmentRequest)}");
+            Logger.Trace($"enrollmentRequest JSON {LogRedactor.Json(enrollmentRequest)}");
 
             enrollmentResponse = flow.Step("SubmitNewOrderToSslStore",
                 () => RunSync(() => SslStoreClient.SubmitNewOrderRequestAsync(enrollmentRequest)));
@@ -339,7 +339,7 @@ namespace Keyfactor.AnyGateway.SslStore
             flow.Step("ResolvePriorCertificate", $"order={orderId}");
 
             var orderStatusRequest = _requestManager.GetOrderStatusRequest(orderId);
-            Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+            Logger.Trace($"orderStatusRequest JSON {LogRedactor.Json(orderStatusRequest)}");
 
             var orderStatusResponse = flow.Step("FetchPriorOrderStatus",
                 () => RunSync(() => SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)), $"order={orderId}");
@@ -349,7 +349,7 @@ namespace Keyfactor.AnyGateway.SslStore
                 throw new InvalidOperationException($"Failed to retrieve the status of prior order {orderId}.");
             }
 
-            Logger.Trace($"orderStatusResponse JSON {JsonConvert.SerializeObject(orderStatusResponse)}");
+            Logger.Trace($"orderStatusResponse JSON {LogRedactor.Json(orderStatusResponse)}");
             return orderStatusResponse;
         }
 
@@ -518,12 +518,12 @@ namespace Keyfactor.AnyGateway.SslStore
                 flow.Step("ValidateInput", $"caRequestId={caRequestId}");
                 var orderStatusRequest = _requestManager.GetOrderStatusRequest(caRequestId);
 
-                Logger.Trace($"orderStatusRequest JSON {JsonConvert.SerializeObject(orderStatusRequest)}");
+                Logger.Trace($"orderStatusRequest JSON {LogRedactor.Json(orderStatusRequest)}");
 
                 var certResponse = flow.Step("FetchOrderStatus",
                     () => RunSync(() => SslStoreClient.SubmitOrderStatusRequestAsync(orderStatusRequest)));
 
-                Logger.Trace($"certResponse JSON {JsonConvert.SerializeObject(certResponse)}");
+                Logger.Trace($"certResponse JSON {LogRedactor.Json(certResponse)}");
 
                 var majorStatus = certResponse?.OrderStatus?.MajorStatus;
                 Logger.Trace($"GetSingleRecord: MajorStatus={majorStatus ?? "(null)"}");
@@ -593,13 +593,13 @@ namespace Keyfactor.AnyGateway.SslStore
                 Logger.Trace("Getting organization list request...");
                 var organizationListRequest = _requestManager.GetOrganizationListRequest();
 
-                Logger.Trace($"organizationListRequest JSON {JsonConvert.SerializeObject(organizationListRequest)}");
+                Logger.Trace($"organizationListRequest JSON {LogRedactor.Json(organizationListRequest)}");
 
                 Logger.Trace("Submitting organization list request to SslStore...");
                 var orgListResponse = Task
                     .Run(async () => await SslStoreClient.SubmitOrganizationListAsync(organizationListRequest)).Result;
 
-                Logger.Trace($"orgListResponse JSON {JsonConvert.SerializeObject(orgListResponse)}");
+                Logger.Trace($"orgListResponse JSON {LogRedactor.Json(orgListResponse)}");
 
                 if (orgListResponse == null)
                 {
@@ -691,7 +691,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                             Logger.Trace($"Submitting template update for {currentTemplate.CommonName}...");
                             var updateOrgResponse = Task.Run(async () => await KeyfactorClient.SubmitUpdateTemplateAsync(currentTemplate)).Result;
-                            Logger.Trace($"Template update response for {currentTemplate.CommonName}: {JsonConvert.SerializeObject(updateOrgResponse)}");
+                            Logger.Trace($"Template update response for {currentTemplate.CommonName}: {LogRedactor.Json(updateOrgResponse)}");
                         }
                     }
                     catch (Exception ex)
@@ -750,7 +750,7 @@ namespace Keyfactor.AnyGateway.SslStore
                             continue;
                         }
 
-                        Logger.Trace($"Order status response for {orderId}: OrderStatus={JsonConvert.SerializeObject(orderStatusResponse.OrderStatus)}, CommonName={orderStatusResponse.CommonName ?? "(null)"}, ProductCode={orderStatusResponse.ProductCode ?? "(null)"}");
+                        Logger.Trace($"Order status response for {orderId}: OrderStatus={LogRedactor.Json(orderStatusResponse.OrderStatus)}, CommonName={orderStatusResponse.CommonName ?? "(null)"}, ProductCode={orderStatusResponse.ProductCode ?? "(null)"}");
 
                         if (orderStatusResponse.OrderStatus == null)
                         {
@@ -795,7 +795,7 @@ namespace Keyfactor.AnyGateway.SslStore
                                 }
                                 else
                                 {
-                                    Logger.Warn($"Certificate download returned error for order {orderId}: {JsonConvert.SerializeObject(certResponse.AuthResponse)}");
+                                    Logger.Warn($"Certificate download returned error for order {orderId}: {LogRedactor.Json(certResponse.AuthResponse)}");
                                 }
                             }
                             catch (Exception dlEx)
@@ -936,7 +936,7 @@ namespace Keyfactor.AnyGateway.SslStore
 
                 flow.Step("ValidateConfig", "required keys present");
                 PartnerCode = configProvider.CAConnectionData[Constants.PartnerCode]?.ToString();
-                Logger.Trace($"Initialize: PartnerCode={PartnerCode ?? "(null)"}");
+                Logger.Trace($"Initialize: PartnerCode {(string.IsNullOrEmpty(PartnerCode) ? "is empty" : "set (value masked)")}.");
 
                 AuthenticationToken = configProvider.CAConnectionData[Constants.AuthToken]?.ToString();
                 Logger.Trace("Initialize: AuthenticationToken set (value masked).");

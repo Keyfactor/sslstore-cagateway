@@ -148,6 +148,7 @@
     <Compile Include="Client\SslStoreClient.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FlowLogger.cs" />
+    <Compile Include="LogRedactor.cs" />
     <Compile Include="Interfaces\ISslStoreClient.cs" />
     <Compile Include="Interfaces\IRequestManager.cs" />
     <Compile Include="RequestManager.cs" />
