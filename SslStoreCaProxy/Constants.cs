@@ -6,9 +6,11 @@
         public static string PartnerCode = "PartnerCode";
         public static string AuthToken = "AuthToken";
         public static string PageSize = "PageSize";
+        public static string RenewalWindowDays = "RenewalWindowDays";
         public static string KeyfactorApiUrl = "KeyfactorApiUrl";
         public static string KeyfactorApiUserId = "KeyfactorApiUserId";
         public static string KeyfactorApiPassword = "KeyfactorApiPassword";
         public static int DefaultPageSize = 100;
+        public static int DefaultRenewalWindowDays = 30;
     }
 }
