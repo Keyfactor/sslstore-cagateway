@@ -648,6 +648,20 @@ namespace Keyfactor.AnyGateway.SslStore
                 else
                     flow.Skip("DownloadCertificate", "order is not issued yet (pending validation)");
 
+                //{order id}-{serial} identifies one certificate of the order. SSL Store only downloads the order's current
+                //certificate, so after a reissue handing it back under the old request id would overwrite the older
+                //certificate's gateway record with the new one.
+                var requestedSerial = GetRequestIdSerial(caRequestId);
+                if (requestedSerial != null && !string.IsNullOrEmpty(certificate) &&
+                    !CertificateHasSerial(certificate, requestedSerial))
+                {
+                    flow.Skip("ValidateCertificateSerial",
+                        $"order {orderId} now holds a different certificate than '{requestedSerial}'; record left unchanged");
+                    Logger.Warn($"GetSingleRecord: caRequestId={caRequestId} refers to an older certificate of order {orderId}; not returning the order's current certificate.");
+                    Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
+                    return null;
+                }
+
                 var purchaseDate = DateTime.UtcNow;
                 if (TryParseSslStoreDate(certResponse?.PurchaseDateInUtc, certResponse?.PurchaseDate, out var purchased))
                     purchaseDate = purchased;
@@ -677,6 +691,30 @@ namespace Keyfactor.AnyGateway.SslStore
                     CSR = string.Empty,
                     Status = Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED)
                 };
+            }
+        }
+
+        //Returns the serial part of an {order id}-{serial} request id, or null when there is none
+        private static string GetRequestIdSerial(string caRequestId)
+        {
+            var separator = caRequestId.IndexOf('-');
+            if (separator < 0 || separator == caRequestId.Length - 1) return null;
+            return caRequestId.Substring(separator + 1);
+        }
+
+        private bool CertificateHasSerial(string certificate, string serial)
+        {
+            try
+            {
+                var cert = new X509Certificate2(Encoding.UTF8.GetBytes(certificate));
+                var actual = (cert.SerialNumber ?? string.Empty).TrimStart('0');
+                var expected = serial.TrimStart('0');
+                return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Could not read the serial number of the downloaded certificate: {ex.Message}");
+                return false;
             }
         }
 
