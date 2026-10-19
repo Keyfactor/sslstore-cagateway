@@ -331,13 +331,56 @@ namespace Keyfactor.AnyGateway.SslStore
         }
 
         /// <summary>
+        ///     Looks up a certificate by serial number, tolerating the DER sign-padding byte. A serial whose first byte is
+        ///     0x80 or higher is stored with a leading 00 (for example 00B970...), but Command may send it without.
+        /// </summary>
+        private CAConnectorCertificate FindCertificateBySerial(FlowLogger flow,
+            ICertificateDataReader certificateDataReader, string hexSerial)
+        {
+            var candidates = GetSerialNumberCandidates(hexSerial);
+            foreach (var candidate in candidates)
+            {
+                var record = certificateDataReader.GetCertificateRecord(DataConversion.HexToBytes(candidate));
+                if (record == null) continue;
+
+                if (candidate != candidates[0])
+                    flow.Step("SerialNumberNormalized", $"matched serial variant '{candidate}' (requested '{candidates[0]}')");
+                return record;
+            }
+
+            flow.Fail("LocatePriorCertificate", $"no certificate found for serial '{hexSerial}' or its leading-zero variants");
+            return null;
+        }
+
+        private static List<string> GetSerialNumberCandidates(string hexSerial)
+        {
+            var candidates = new List<string>();
+            var serial = (hexSerial ?? string.Empty).Trim();
+            if (serial.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) serial = serial.Substring(2);
+            serial = serial.Replace(" ", string.Empty).Replace(":", string.Empty).ToUpperInvariant();
+            if (serial.Length == 0) return candidates;
+            if (serial.Length % 2 != 0) serial = "0" + serial;
+            candidates.Add(serial);
+
+            var stripped = serial;
+            while (stripped.Length > 2 && stripped.StartsWith("00", StringComparison.Ordinal))
+                stripped = stripped.Substring(2);
+            if (!candidates.Contains(stripped)) candidates.Add(stripped);
+
+            if (Convert.ToInt32(stripped.Substring(0, 2), 16) >= 0x80 && !candidates.Contains("00" + stripped))
+                candidates.Add("00" + stripped);
+
+            return candidates;
+        }
+
+        /// <summary>
         ///     Finds the prior certificate in the gateway database and returns the current status of its SSL Store order.
         /// </summary>
         private INewOrderResponse GetPriorOrder(FlowLogger flow, ICertificateDataReader certificateDataReader,
             string priorCertSn)
         {
             Logger.Trace($"PriorCertSN={priorCertSn}");
-            var priorCert = certificateDataReader.GetCertificateRecord(DataConversion.HexToBytes(priorCertSn));
+            var priorCert = FindCertificateBySerial(flow, certificateDataReader, priorCertSn);
             if (priorCert == null)
             {
                 Logger.Error($"Prior certificate not found for PriorCertSN={priorCertSn}");
