@@ -68,11 +68,16 @@ namespace Keyfactor.AnyGateway.SslStore
             return Task.Run(operation).GetAwaiter().GetResult();
         }
 
+        //A failed enrollment with no CARequestID leaves a gateway row Command cannot look up ("Certificate with ID n was
+        //not found"), which hides the real reason. Give every failure a unique placeholder id instead.
+        private const string FailedRequestPrefix = "FAILED|";
+
         private static EnrollmentResult Failure(string message)
         {
             return new EnrollmentResult
             {
                 Status = FailedStatus,
+                CARequestID = FailedRequestPrefix + Guid.NewGuid().ToString("N"),
                 StatusMessage = message
             };
         }
@@ -236,6 +241,19 @@ namespace Keyfactor.AnyGateway.SslStore
             }
 
             flow.Step("EnrollmentDecision", $"requested={requestedType}, resolved={enrollmentType}");
+
+            //SSL Store rejects a reissue or renewal (-9033, certificate is not active) while the order is still waiting
+            //on validation, for example right after an earlier reissue
+            var priorMajorStatus = priorOrder?.OrderStatus?.MajorStatus;
+            if (enrollmentType != RequestUtilities.EnrollmentType.New &&
+                string.Equals(priorMajorStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                var pendingMessage = $"Order {priorOrder.TheSslStoreOrderId} is still pending validation " +
+                                     $"({priorOrder.OrderStatus.MinorStatus ?? "pending"}). Approve the pending request " +
+                                     "(approver email or DCV) before reissuing or renewing this certificate.";
+                flow.Fail("CheckPriorOrderActive", pendingMessage);
+                return Failure(pendingMessage);
+            }
 
             INewOrderResponse enrollmentResponse;
             switch (enrollmentType)
@@ -522,11 +540,7 @@ namespace Keyfactor.AnyGateway.SslStore
             {
                 Logger.Error("GetEnrollmentResult: newOrderResponse is null.");
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
-                return new EnrollmentResult
-                {
-                    Status = 30,
-                    StatusMessage = "Enrollment response was null."
-                };
+                return Failure("Enrollment response was null.");
             }
 
             Logger.Trace($"GetEnrollmentResult: TheSslStoreOrderId={newOrderResponse.TheSslStoreOrderId ?? "(null)"}, AuthResponse is null={newOrderResponse.AuthResponse == null}");
@@ -540,11 +554,7 @@ namespace Keyfactor.AnyGateway.SslStore
                 }
                 Logger.Error($"GetEnrollmentResult: Auth error: {errorMessage}");
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
-                return new EnrollmentResult
-                {
-                    Status = 30, //failure
-                    StatusMessage = errorMessage
-                };
+                return Failure(errorMessage);
             }
 
             Logger.Trace($"GetEnrollmentResult: Success, OrderId={newOrderResponse.TheSslStoreOrderId ?? "(null)"}");
@@ -591,6 +601,19 @@ namespace Keyfactor.AnyGateway.SslStore
                         Certificate = string.Empty,
                         CSR = string.Empty,
                         Status = Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.FAILED)
+                    };
+                }
+
+                if (caRequestId.StartsWith(FailedRequestPrefix, StringComparison.Ordinal))
+                {
+                    flow.Skip("FetchOrderStatus", "placeholder id of a failed enrollment");
+                    Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
+                    return new CAConnectorCertificate
+                    {
+                        CARequestID = caRequestId,
+                        Certificate = string.Empty,
+                        CSR = string.Empty,
+                        Status = FailedStatus
                     };
                 }
 
