@@ -137,6 +137,7 @@ the CA.  Without the imported configuration, the service will fail to start.
       "ADMINISTRATOR": "Allow"
     }
 ```
+- *Renewal window* (optional `RenewalWindowDays` in `CAConnection`, default 30): when a renewal or reissue is requested for an existing certificate, the gateway looks at the expiry of the SSL Store **order**, not the certificate. More than `RenewalWindowDays` left on the order -> reissue under the active order; inside the window -> renewal; order expired -> new order (which needs the full enrollment fields). This keeps certificates that are shorter than the order term (for example 200 day certs) from being renewed (and charged) every time.
 - *SSLStore Environment Settings* (Modify these with the keys and Urls obtained from SSLStore)
 ```
   "CAConnection": {
@@ -147,6 +148,7 @@ the CA.  Without the imported configuration, the service will fail to start.
     "KeyfactorApiUserId": "SomeKeyfactorAPIUser",
     "KeyfactorApiPassword": "SomeKeyfactorAPIPassword",
     "PageSize": "25",
+    "RenewalWindowDays": "30",
     "SampleRequest": {
       "AuthRequest": {
         "PartnerCode": {
