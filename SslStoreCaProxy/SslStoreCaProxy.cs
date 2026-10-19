@@ -549,12 +549,17 @@ namespace Keyfactor.AnyGateway.SslStore
 
             Logger.Trace($"GetEnrollmentResult: Success, OrderId={newOrderResponse.TheSslStoreOrderId ?? "(null)"}");
             Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
-            //Most orders wait on domain validation (approver email, CNAME), so no certificate comes back yet. Return the
-            //order id so the gateway keeps the request and polls GetSingleRecord until it is issued.
+            //Most orders wait on domain validation (approver email, CNAME), so no certificate comes back yet. Return an id
+            //so the gateway keeps the request and polls GetSingleRecord until it is issued. Reissues and renewals reuse the
+            //order id, and the gateway requires CARequestID to be unique, so the partner order id (new for every
+            //submission) is appended.
+            var caRequestId = string.IsNullOrWhiteSpace(newOrderResponse.PartnerOrderId)
+                ? newOrderResponse.TheSslStoreOrderId
+                : $"{newOrderResponse.TheSslStoreOrderId}|{newOrderResponse.PartnerOrderId}";
             return new EnrollmentResult
             {
                 Status = Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.EXTERNAL_VALIDATION),
-                CARequestID = newOrderResponse.TheSslStoreOrderId,
+                CARequestID = caRequestId,
                 StatusMessage = $"Order Successfully Created With Order Number {newOrderResponse.TheSslStoreOrderId}"
             };
         }
