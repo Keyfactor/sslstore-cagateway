@@ -32,19 +32,51 @@ namespace Keyfactor.AnyGateway.SslStore
         public NewOrderRequest GetEnrollmentRequest(string csr, EnrollmentProductInfo productInfo,
             ICAConnectorConfigProvider configProvider, bool isRenewalOrder)
         {
-            csr = PemUtilities.DERToPEM(Convert.FromBase64String(csr), PemUtilities.PemObjectType.CertRequest);
-
-            var sampleRequest = JsonConvert.SerializeObject(configProvider.CAConnectionData["SampleRequest"]);
-
-            var settings = new JsonSerializerSettings
+            Logger.Trace($"GetEnrollmentRequest called: isRenewalOrder={isRenewalOrder}, ProductID={productInfo?.ProductID ?? "(null)"}");
+            try
             {
-                NullValueHandling = NullValueHandling.Ignore,
-                MissingMemberHandling = MissingMemberHandling.Ignore
-            };
-            var request = BuildNewOrderRequest(productInfo,
-                JsonConvert.DeserializeObject<TemplateNewOrderRequest>(sampleRequest, settings), csr, isRenewalOrder);
+                if (string.IsNullOrEmpty(csr))
+                {
+                    Logger.Error("GetEnrollmentRequest: CSR is null or empty.");
+                    throw new ArgumentNullException(nameof(csr), "CSR is required.");
+                }
 
-            return request;
+                csr = PemUtilities.DERToPEM(Convert.FromBase64String(csr), PemUtilities.PemObjectType.CertRequest);
+                Logger.Trace("GetEnrollmentRequest: CSR converted to PEM.");
+
+                if (configProvider?.CAConnectionData == null || !configProvider.CAConnectionData.ContainsKey("SampleRequest"))
+                {
+                    Logger.Error("GetEnrollmentRequest: configProvider CAConnectionData missing or 'SampleRequest' key not found.");
+                    throw new InvalidOperationException("SampleRequest configuration is missing.");
+                }
+
+                var sampleRequestObj = configProvider.CAConnectionData["SampleRequest"];
+                Logger.Trace($"GetEnrollmentRequest: SampleRequest type={sampleRequestObj?.GetType().Name ?? "(null)"}");
+
+                var sampleRequest = JsonConvert.SerializeObject(sampleRequestObj);
+                Logger.Trace($"GetEnrollmentRequest: SampleRequest JSON length={sampleRequest?.Length ?? 0}");
+
+                var settings = new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore,
+                    MissingMemberHandling = MissingMemberHandling.Ignore
+                };
+                var templateRequest = JsonConvert.DeserializeObject<TemplateNewOrderRequest>(sampleRequest, settings);
+                if (templateRequest == null)
+                {
+                    Logger.Error("GetEnrollmentRequest: Failed to deserialize SampleRequest into TemplateNewOrderRequest.");
+                    throw new InvalidOperationException("Failed to deserialize SampleRequest.");
+                }
+
+                var request = BuildNewOrderRequest(productInfo, templateRequest, csr, isRenewalOrder);
+                Logger.Trace($"GetEnrollmentRequest: Request built successfully.");
+                return request;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GetEnrollmentRequest failed: {ex.Message}\n{ex.StackTrace}");
+                throw;
+            }
         }
 
         public EmailApproverRequest GetEmailApproverListRequest(string productId, string productName)
@@ -77,54 +109,97 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public ReIssueRequest GetReIssueRequest(INewOrderResponse orderData, string csr, bool isRenewal)
         {
+            Logger.Trace($"GetReIssueRequest called: OrderId={orderData?.TheSslStoreOrderId ?? "(null)"}, isRenewal={isRenewal}");
+
+            if (orderData == null)
+            {
+                Logger.Error("GetReIssueRequest: orderData is null.");
+                throw new ArgumentNullException(nameof(orderData));
+            }
+
+            var productCode = orderData.ProductCode ?? "";
+            Logger.Trace($"GetReIssueRequest: ProductCode={productCode}, AdminContact is null={orderData.AdminContact == null}, OrderStatus is null={orderData.OrderStatus == null}");
+
             return new ReIssueRequest
             {
                 AuthRequest = GetAuthRequest(),
                 TheSslStoreOrderId = orderData.TheSslStoreOrderId,
                 Csr = csr,
                 IsRenewalOrder = isRenewal,
-                IsWildCard = orderData.ProductCode.Contains("wc") || orderData.ProductCode.Contains("wildcard"),
-                ReissueEmail = orderData.AdminContact.Email,
+                IsWildCard = productCode.Contains("wc") || productCode.Contains("wildcard"),
+                ReissueEmail = orderData.AdminContact?.Email,
                 ApproverEmails = orderData.ApproverEmail,
                 PreferEnrollmentLink = false,
-                FileAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.FileName != null),
-                CNameAuthDvIndicator = orderData.OrderStatus.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.DnsName != null),
+                FileAuthDvIndicator = orderData.OrderStatus?.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.FileName != null),
+                CNameAuthDvIndicator = orderData.OrderStatus?.DomainAuthVettingStatus == null ? false : orderData.OrderStatus.DomainAuthVettingStatus.Exists(x => x.DnsName != null),
                 WebServerType = orderData.WebServerType
             };
         }
 
         public AdminContact GetAdminContact(EnrollmentProductInfo productInfo)
         {
+            Logger.Trace("GetAdminContact(EnrollmentProductInfo) called.");
+
+            if (productInfo?.ProductParameters == null)
+            {
+                Logger.Error("GetAdminContact: productInfo or ProductParameters is null.");
+                throw new ArgumentNullException(nameof(productInfo));
+            }
+
+            string GetParam(string key)
+            {
+                if (productInfo.ProductParameters.ContainsKey(key))
+                    return productInfo.ProductParameters[key];
+                Logger.Warn($"GetAdminContact: Missing parameter '{key}'.");
+                return null;
+            }
+
             return new AdminContact
             {
-                FirstName = productInfo.ProductParameters["Admin Contact - First Name"],
-                LastName = productInfo.ProductParameters["Admin Contact - Last Name"],
-                Phone = productInfo.ProductParameters["Admin Contact - Phone"],
-                Email = productInfo.ProductParameters["Admin Contact - Email"],
-                OrganizationName = productInfo.ProductParameters["Admin Contact - Organization Name"],
-                AddressLine1 = productInfo.ProductParameters["Admin Contact - Address"],
-                City = productInfo.ProductParameters["Admin Contact - City"],
-                Region = productInfo.ProductParameters["Admin Contact - Region"],
-                PostalCode = productInfo.ProductParameters["Admin Contact - Postal Code"],
-                Country = productInfo.ProductParameters["Admin Contact - Country"]
+                FirstName = GetParam("Admin Contact - First Name"),
+                LastName = GetParam("Admin Contact - Last Name"),
+                Phone = GetParam("Admin Contact - Phone"),
+                Email = GetParam("Admin Contact - Email"),
+                OrganizationName = GetParam("Admin Contact - Organization Name"),
+                AddressLine1 = GetParam("Admin Contact - Address"),
+                City = GetParam("Admin Contact - City"),
+                Region = GetParam("Admin Contact - Region"),
+                PostalCode = GetParam("Admin Contact - Postal Code"),
+                Country = GetParam("Admin Contact - Country")
             };
         }
 
 
         public TechnicalContact GetTechnicalContact(EnrollmentProductInfo productInfo)
         {
+            Logger.Trace("GetTechnicalContact(EnrollmentProductInfo) called.");
+
+            if (productInfo?.ProductParameters == null)
+            {
+                Logger.Error("GetTechnicalContact: productInfo or ProductParameters is null.");
+                throw new ArgumentNullException(nameof(productInfo));
+            }
+
+            string GetParam(string key)
+            {
+                if (productInfo.ProductParameters.ContainsKey(key))
+                    return productInfo.ProductParameters[key];
+                Logger.Warn($"GetTechnicalContact: Missing parameter '{key}'.");
+                return null;
+            }
+
             return new TechnicalContact
             {
-                FirstName = productInfo.ProductParameters["Technical Contact - First Name"],
-                LastName = productInfo.ProductParameters["Technical Contact - Last Name"],
-                Phone = productInfo.ProductParameters["Technical Contact - Phone"],
-                Email = productInfo.ProductParameters["Technical Contact - Email"],
-                OrganizationName = productInfo.ProductParameters["Technical Contact - Organization Name"],
-                AddressLine1 = productInfo.ProductParameters["Technical Contact - Address"],
-                City = productInfo.ProductParameters["Technical Contact - City"],
-                Region = productInfo.ProductParameters["Technical Contact - Region"],
-                PostalCode = productInfo.ProductParameters["Technical Contact - Postal Code"],
-                Country = productInfo.ProductParameters["Technical Contact - Country"]
+                FirstName = GetParam("Technical Contact - First Name"),
+                LastName = GetParam("Technical Contact - Last Name"),
+                Phone = GetParam("Technical Contact - Phone"),
+                Email = GetParam("Technical Contact - Email"),
+                OrganizationName = GetParam("Technical Contact - Organization Name"),
+                AddressLine1 = GetParam("Technical Contact - Address"),
+                City = GetParam("Technical Contact - City"),
+                Region = GetParam("Technical Contact - Region"),
+                PostalCode = GetParam("Technical Contact - Postal Code"),
+                Country = GetParam("Technical Contact - Country")
             };
         }
 
@@ -148,9 +223,38 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public int GetClientPageSize(ICAConnectorConfigProvider config)
         {
-            if (config.CAConnectionData.ContainsKey(Constants.PageSize))
-                return int.Parse(config.CAConnectionData[Constants.PageSize].ToString());
-            return Constants.DefaultPageSize;
+            Logger.Trace("GetClientPageSize called.");
+            try
+            {
+                if (config?.CAConnectionData == null)
+                {
+                    Logger.Warn("GetClientPageSize: config or CAConnectionData is null. Using default page size.");
+                    return Constants.DefaultPageSize;
+                }
+
+                if (config.CAConnectionData.ContainsKey(Constants.PageSize))
+                {
+                    var pageSizeValue = config.CAConnectionData[Constants.PageSize]?.ToString();
+                    Logger.Trace($"GetClientPageSize: Raw value='{pageSizeValue ?? "(null)"}'");
+
+                    if (int.TryParse(pageSizeValue, out var pageSize))
+                    {
+                        Logger.Trace($"GetClientPageSize: Parsed PageSize={pageSize}");
+                        return pageSize;
+                    }
+
+                    Logger.Warn($"GetClientPageSize: Failed to parse '{pageSizeValue}' as int. Using default.");
+                    return Constants.DefaultPageSize;
+                }
+
+                Logger.Trace($"GetClientPageSize: '{Constants.PageSize}' key not found. Using default={Constants.DefaultPageSize}");
+                return Constants.DefaultPageSize;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GetClientPageSize failed: {ex.Message}\n{ex.StackTrace}");
+                return Constants.DefaultPageSize;
+            }
         }
 
         public QueryOrderRequest GetQueryOrderRequest(int pageSize, int pageNumber)
@@ -174,6 +278,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public int MapReturnStatus(string sslStoreStatus)
         {
+            Logger.Trace($"MapReturnStatus called: sslStoreStatus={sslStoreStatus ?? "(null)"}");
+
+            if (sslStoreStatus == null)
+            {
+                Logger.Warn("MapReturnStatus: sslStoreStatus is null, returning UNKNOWN.");
+                return Convert.ToInt32(PKIConstants.Microsoft.RequestDisposition.UNKNOWN);
+            }
+
             PKIConstants.Microsoft.RequestDisposition returnStatus;
 
             switch (sslStoreStatus)
@@ -189,15 +301,27 @@ namespace Keyfactor.AnyGateway.SslStore
                     returnStatus = PKIConstants.Microsoft.RequestDisposition.REVOKED;
                     break;
                 default:
+                    Logger.Warn($"MapReturnStatus: Unrecognized status '{sslStoreStatus}', returning UNKNOWN.");
                     returnStatus = PKIConstants.Microsoft.RequestDisposition.UNKNOWN;
                     break;
             }
 
+            Logger.Trace($"MapReturnStatus: Mapped '{sslStoreStatus}' to {returnStatus} ({Convert.ToInt32(returnStatus)})");
             return Convert.ToInt32(returnStatus);
         }
 
         public NewOrderRequest GetRenewalRequest(INewOrderResponse orderData, string csr)
         {
+            Logger.Trace($"GetRenewalRequest called: OrderId={orderData?.TheSslStoreOrderId ?? "(null)"}");
+
+            if (orderData == null)
+            {
+                Logger.Error("GetRenewalRequest: orderData is null.");
+                throw new ArgumentNullException(nameof(orderData));
+            }
+
+            Logger.Trace($"GetRenewalRequest: ProductCode={orderData.ProductCode ?? "(null)"}, AdminContact is null={orderData.AdminContact == null}, OrderStatus is null={orderData.OrderStatus == null}");
+
             return new NewOrderRequest
             {
                 AuthRequest = GetAuthRequest(),
@@ -219,6 +343,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public AdminContact GetAdminContact(INewOrderResponse productInfo)
         {
+            Logger.Trace("GetAdminContact(INewOrderResponse) called.");
+
+            if (productInfo?.AdminContact == null)
+            {
+                Logger.Warn("GetAdminContact: productInfo or AdminContact is null, returning empty AdminContact.");
+                return new AdminContact();
+            }
+
             return new AdminContact
             {
                 FirstName = productInfo.AdminContact.FirstName,
@@ -230,6 +362,14 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public TechnicalContact GetTechnicalContact(INewOrderResponse productInfo)
         {
+            Logger.Trace("GetTechnicalContact(INewOrderResponse) called.");
+
+            if (productInfo?.AdminContact == null)
+            {
+                Logger.Warn("GetTechnicalContact: productInfo or AdminContact is null, returning empty TechnicalContact.");
+                return new TechnicalContact();
+            }
+
             return new TechnicalContact
             {
                 FirstName = productInfo.AdminContact.FirstName,
@@ -242,7 +382,9 @@ namespace Keyfactor.AnyGateway.SslStore
         private NewOrderRequest BuildNewOrderRequest(EnrollmentProductInfo productInfo,
             TemplateNewOrderRequest newOrderRequest, string csr, bool isRenewal)
         {
+            Logger.Trace($"BuildNewOrderRequest called: ProductID={productInfo?.ProductID ?? "(null)"}, isRenewal={isRenewal}");
             var customOrderId = Guid.NewGuid().ToString();
+            Logger.Trace($"BuildNewOrderRequest: Generated CustomOrderId={customOrderId}");
             productInfo.ProductParameters.Add("CustomOrderId", customOrderId);
 
             var request =
@@ -331,12 +473,51 @@ namespace Keyfactor.AnyGateway.SslStore
 
         public string GetCertificateContent(List<Certificate> certificates, string commonName)
         {
-            foreach (var c in certificates)
+            Logger.Trace($"GetCertificateContent called: commonName={commonName ?? "(null)"}, certificates count={certificates?.Count ?? 0}");
+
+            if (certificates == null || certificates.Count == 0)
             {
-                var cert = new X509Certificate2(Encoding.UTF8.GetBytes(c.FileContent));
-                if (cert.SubjectName.Name != null && cert.SubjectName.Name.Contains(commonName)) return c.FileContent;
+                Logger.Warn("GetCertificateContent: certificates list is null or empty.");
+                return "";
             }
 
+            if (string.IsNullOrEmpty(commonName))
+            {
+                Logger.Warn("GetCertificateContent: commonName is null or empty.");
+                return "";
+            }
+
+            foreach (var c in certificates)
+            {
+                if (c == null)
+                {
+                    Logger.Warn("GetCertificateContent: Encountered null certificate in list, skipping.");
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(c.FileContent))
+                {
+                    Logger.Warn("GetCertificateContent: Certificate has null/empty FileContent, skipping.");
+                    continue;
+                }
+
+                try
+                {
+                    var cert = new X509Certificate2(Encoding.UTF8.GetBytes(c.FileContent));
+                    Logger.Trace($"GetCertificateContent: Checking cert SubjectName={cert.SubjectName?.Name ?? "(null)"} against commonName={commonName}");
+                    if (cert.SubjectName?.Name != null && cert.SubjectName.Name.Contains(commonName))
+                    {
+                        Logger.Trace($"GetCertificateContent: Match found for commonName={commonName}");
+                        return c.FileContent;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"GetCertificateContent: Error parsing certificate: {ex.Message}\n{ex.StackTrace}");
+                }
+            }
+
+            Logger.Warn($"GetCertificateContent: No matching certificate found for commonName={commonName}");
             return "";
         }
 
@@ -390,14 +571,18 @@ namespace Keyfactor.AnyGateway.SslStore
 
         private string ExtractOrgId(string organization)
         {
+            Logger.Trace($"ExtractOrgId called: organization={organization ?? "(null)"}");
             if (organization != null)
             {
                 Regex pattern = new Regex(@"(\([^0-9]*\d+[^0-9]*\))");
                 Match match = pattern.Match(organization);
-                return match.Value.Replace("(", "").Replace(")", "");
+                var result = match.Value.Replace("(", "").Replace(")", "");
+                Logger.Trace($"ExtractOrgId: Extracted orgId='{result}'");
+                return result;
             }
             else
             {
+                Logger.Warn("ExtractOrgId: organization is null, returning null.");
                 return null;
             }
         }

@@ -20,10 +20,29 @@ namespace Keyfactor.AnyGateway.SslStore.Client
     {
         public SslStoreClient(ICAConnectorConfigProvider config)
         {
+            Logger.Trace("SslStoreClient constructor called.");
+            if (config?.CAConnectionData == null)
+            {
+                Logger.Error("SslStoreClient: config or CAConnectionData is null.");
+                return;
+            }
+
             if (config.CAConnectionData.ContainsKey(Constants.SslStoreUrl))
             {
-                BaseUrl = new Uri(config.CAConnectionData[Constants.SslStoreUrl].ToString());
+                var urlValue = config.CAConnectionData[Constants.SslStoreUrl]?.ToString();
+                Logger.Trace($"SslStoreClient: SslStoreUrl={urlValue ?? "(null)"}");
+                if (string.IsNullOrEmpty(urlValue))
+                {
+                    Logger.Error("SslStoreClient: SslStoreUrl value is null or empty.");
+                    return;
+                }
+                BaseUrl = new Uri(urlValue);
                 RestClient = ConfigureRestClient();
+                Logger.Trace("SslStoreClient: RestClient configured successfully.");
+            }
+            else
+            {
+                Logger.Error($"SslStoreClient: Missing required config key '{Constants.SslStoreUrl}'.");
             }
         }
 
@@ -33,51 +52,109 @@ namespace Keyfactor.AnyGateway.SslStore.Client
 
         public async Task<NewOrderResponse> SubmitNewOrderRequestAsync(NewOrderRequest newOrderRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/neworder", new StringContent(
-                JsonConvert.SerializeObject(newOrderRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitNewOrderRequestAsync called.");
+            try
             {
-                Logger.Trace(JsonConvert.SerializeObject(newOrderRequest));
-                resp.EnsureSuccessStatusCode();
-                var enrollmentResponse =
-                    JsonConvert.DeserializeObject<NewOrderResponse>(await resp.Content.ReadAsStringAsync());
-                return enrollmentResponse;
+                Logger.Trace($"SubmitNewOrderRequestAsync Request JSON: {LogRedactor.Json(newOrderRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/neworder", new StringContent(
+                    JsonConvert.SerializeObject(newOrderRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitNewOrderRequestAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    resp.EnsureSuccessStatusCode();
+                    var enrollmentResponse = JsonConvert.DeserializeObject<NewOrderResponse>(responseBody);
+                    if (enrollmentResponse == null)
+                        Logger.Warn("SubmitNewOrderRequestAsync: Deserialized response is null.");
+                    return enrollmentResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitNewOrderRequestAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
         public async Task<EmailApproverResponse> SubmitEmailApproverRequestAsync(EmailApproverRequest newApproverRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/approverlist", new StringContent(
-                JsonConvert.SerializeObject(newApproverRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitEmailApproverRequestAsync called.");
+            try
             {
-                Logger.Trace(JsonConvert.SerializeObject(newApproverRequest));
-                resp.EnsureSuccessStatusCode();
-                var enrollmentResponse =
-                    JsonConvert.DeserializeObject<EmailApproverResponse>(await resp.Content.ReadAsStringAsync());
-                return enrollmentResponse;
+                Logger.Trace($"SubmitEmailApproverRequestAsync Request JSON: {LogRedactor.Json(newApproverRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/approverlist", new StringContent(
+                    JsonConvert.SerializeObject(newApproverRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitEmailApproverRequestAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    resp.EnsureSuccessStatusCode();
+                    var enrollmentResponse = JsonConvert.DeserializeObject<EmailApproverResponse>(responseBody);
+                    if (enrollmentResponse == null)
+                        Logger.Warn("SubmitEmailApproverRequestAsync: Deserialized response is null.");
+                    return enrollmentResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitEmailApproverRequestAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
         public async Task<NewOrderResponse> SubmitReIssueRequestAsync(ReIssueRequest reIssueOrderRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/reissue", new StringContent(
-                JsonConvert.SerializeObject(reIssueOrderRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitReIssueRequestAsync called.");
+            try
             {
-                var orderStatusResponse =
-                    JsonConvert.DeserializeObject<NewOrderResponse>(await resp.Content.ReadAsStringAsync());
-                return orderStatusResponse;
+                Logger.Trace($"SubmitReIssueRequestAsync Request JSON: {LogRedactor.Json(reIssueOrderRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/reissue", new StringContent(
+                    JsonConvert.SerializeObject(reIssueOrderRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitReIssueRequestAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    resp.EnsureSuccessStatusCode();
+                    var orderStatusResponse = JsonConvert.DeserializeObject<NewOrderResponse>(responseBody);
+                    if (orderStatusResponse == null)
+                        Logger.Warn("SubmitReIssueRequestAsync: Deserialized response is null.");
+                    return orderStatusResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitReIssueRequestAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
         public async Task<NewOrderResponse> SubmitRenewRequestAsync(NewOrderRequest renewOrderRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/neworder", new StringContent(
-                JsonConvert.SerializeObject(renewOrderRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitRenewRequestAsync called.");
+            try
             {
-                Logger.Trace(JsonConvert.SerializeObject(renewOrderRequest));
-                resp.EnsureSuccessStatusCode();
-                var enrollmentResponse =
-                    JsonConvert.DeserializeObject<NewOrderResponse>(await resp.Content.ReadAsStringAsync());
-                return enrollmentResponse;
+                Logger.Trace($"SubmitRenewRequestAsync Request JSON: {LogRedactor.Json(renewOrderRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/neworder", new StringContent(
+                    JsonConvert.SerializeObject(renewOrderRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitRenewRequestAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    resp.EnsureSuccessStatusCode();
+                    var enrollmentResponse = JsonConvert.DeserializeObject<NewOrderResponse>(responseBody);
+                    if (enrollmentResponse == null)
+                        Logger.Warn("SubmitRenewRequestAsync: Deserialized response is null.");
+                    return enrollmentResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitRenewRequestAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
@@ -85,14 +162,28 @@ namespace Keyfactor.AnyGateway.SslStore.Client
         public async Task<IDownloadCertificateResponse> SubmitDownloadCertificateAsync(
             DownloadCertificateRequest downloadOrderRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/download", new StringContent(
-                JsonConvert.SerializeObject(downloadOrderRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitDownloadCertificateAsync called.");
+            try
             {
-                Logger.Trace(JsonConvert.SerializeObject(downloadOrderRequest));
-                resp.EnsureSuccessStatusCode();
-                var downloadOrderResponse =
-                    JsonConvert.DeserializeObject<DownloadCertificateResponse>(await resp.Content.ReadAsStringAsync());
-                return downloadOrderResponse;
+                Logger.Trace($"SubmitDownloadCertificateAsync Request JSON: {LogRedactor.Json(downloadOrderRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/download", new StringContent(
+                    JsonConvert.SerializeObject(downloadOrderRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitDownloadCertificateAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    resp.EnsureSuccessStatusCode();
+                    var downloadOrderResponse = JsonConvert.DeserializeObject<DownloadCertificateResponse>(responseBody);
+                    if (downloadOrderResponse == null)
+                        Logger.Warn("SubmitDownloadCertificateAsync: Deserialized response is null.");
+                    return downloadOrderResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitDownloadCertificateAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
@@ -100,6 +191,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client
             RequestManager requestManager)
         {
             Logger.MethodEntry(ILogExtensions.MethodLogLevel.Debug);
+            Logger.Trace("SubmitQueryOrderRequestAsync starting...");
             try
             {
                 var itemsProcessed = 0;
@@ -109,6 +201,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                 do
                 {
                     pageCounter++;
+                    Logger.Trace($"SubmitQueryOrderRequestAsync: Requesting page {pageCounter}, PageSize={PageSize}");
                     var queryOrderRequest = requestManager.GetQueryOrderRequest(PageSize, pageCounter);
                     var batchItemsProcessed = 0;
                     using (var resp = await RestClient.PostAsync("/rest/order/query", new StringContent(
@@ -122,26 +215,50 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                             retryCount++;
                             if (retryCount > 5)
                                 throw new RetryCountExceededException(
-                                    $"5 consecutive failures to {resp.RequestMessage.RequestUri}");
+                                    $"5 consecutive failures to {resp.RequestMessage?.RequestUri}");
 
                             continue;
                         }
 
-                        var batchResponse =
-                            JsonConvert.DeserializeObject<List<NewOrderResponse>>(
-                                await resp.Content.ReadAsStringAsync());
+                        retryCount = 0;
+                        var responseBody = await resp.Content.ReadAsStringAsync();
+                        Logger.Trace($"SubmitQueryOrderRequestAsync: Page {pageCounter} response length={responseBody?.Length ?? 0}");
 
-                        Logger.Trace($"Order List JSON {JsonConvert.SerializeObject(batchResponse)}");
+                        var batchResponse =
+                            JsonConvert.DeserializeObject<List<NewOrderResponse>>(responseBody);
+
+                        if (batchResponse == null)
+                        {
+                            Logger.Warn($"SubmitQueryOrderRequestAsync: Deserialized batch response is null for page {pageCounter}. Ending pagination.");
+                            isComplete = true;
+                            break;
+                        }
+
+                        Logger.Trace($"Order List JSON {LogRedactor.Json(batchResponse)}");
 
                         var batchCount = batchResponse.Count;
+                        Logger.Trace($"Processing {batchCount} items in batch (page {pageCounter})");
 
-                        Logger.Trace($"Processing {batchCount} items in batch");
+                        if (batchCount == 0)
+                        {
+                            Logger.Trace("SubmitQueryOrderRequestAsync: Empty batch received. Ending pagination.");
+                            isComplete = true;
+                            break;
+                        }
+
                         do
                         {
                             var r = batchResponse[batchItemsProcessed];
+                            if (r == null)
+                            {
+                                Logger.Warn($"SubmitQueryOrderRequestAsync: Null item at index {batchItemsProcessed} in batch, skipping.");
+                                batchItemsProcessed++;
+                                continue;
+                            }
+
                             if (bc.TryAdd(r, 10, ct))
                             {
-                                Logger.Trace($"Added Certificate ID {r.TheSslStoreOrderId} to Queue for processing");
+                                Logger.Trace($"Added Certificate ID {r.TheSslStoreOrderId ?? "(null)"} to Queue for processing");
                                 batchItemsProcessed++;
                                 itemsProcessed++;
                                 Logger.Trace($"Processed {batchItemsProcessed} of {batchCount}");
@@ -149,7 +266,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                             }
                             else
                             {
-                                Logger.Trace($"Adding {r} blocked. Retry");
+                                Logger.Trace($"Adding order {r.TheSslStoreOrderId ?? "(null)"} blocked. Retry");
                             }
                         } while (batchItemsProcessed < batchCount); //batch loop
                     }
@@ -159,6 +276,7 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                         isComplete = true;
                 } while (!isComplete); //page loop
 
+                Logger.Trace($"SubmitQueryOrderRequestAsync: Pagination complete. Total items processed={itemsProcessed}, pages={pageCounter}");
                 bc.CompleteAdding();
             }
             catch (OperationCanceledException cancelEx)
@@ -166,17 +284,28 @@ namespace Keyfactor.AnyGateway.SslStore.Client
                 Logger.Warn($"Synchronize method was cancelled. Message: {cancelEx.Message}");
                 bc.CompleteAdding();
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
-                // ReSharper disable once PossibleIntendedRethrow
-                throw cancelEx;
+                throw;
             }
             catch (RetryCountExceededException retryEx)
             {
-                Logger.Error($"Retries Failed: {retryEx.Message}");
+                Logger.Error($"Retries Failed: {retryEx.Message}\n{retryEx.StackTrace}");
+                bc.CompleteAdding();
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
             }
             catch (HttpRequestException ex)
             {
-                Logger.Error($"HttpRequest Failed: {ex.Message}");
+                Logger.Error($"HttpRequest Failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                bc.CompleteAdding();
+                Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitQueryOrderRequestAsync unexpected error: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                bc.CompleteAdding();
                 Logger.MethodExit(ILogExtensions.MethodLogLevel.Debug);
             }
 
@@ -185,34 +314,79 @@ namespace Keyfactor.AnyGateway.SslStore.Client
 
         public async Task<IOrderStatusResponse> SubmitRevokeCertificateAsync(RevokeOrderRequest revokeOrderRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/refundrequest", new StringContent(
-                JsonConvert.SerializeObject(revokeOrderRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitRevokeCertificateAsync called.");
+            try
             {
-                var revocationResponse =
-                    JsonConvert.DeserializeObject<OrderStatusResponse>(await resp.Content.ReadAsStringAsync());
-                return revocationResponse;
+                Logger.Trace($"SubmitRevokeCertificateAsync Request JSON: {LogRedactor.Json(revokeOrderRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/refundrequest", new StringContent(
+                    JsonConvert.SerializeObject(revokeOrderRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitRevokeCertificateAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    var revocationResponse = JsonConvert.DeserializeObject<OrderStatusResponse>(responseBody);
+                    if (revocationResponse == null)
+                        Logger.Warn("SubmitRevokeCertificateAsync: Deserialized response is null.");
+                    return revocationResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitRevokeCertificateAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
         public async Task<INewOrderResponse> SubmitOrderStatusRequestAsync(OrderStatusRequest orderStatusRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/order/status", new StringContent(
-                JsonConvert.SerializeObject(orderStatusRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitOrderStatusRequestAsync called.");
+            try
             {
-                var orderStatusResponse =
-                    JsonConvert.DeserializeObject<NewOrderResponse>(await resp.Content.ReadAsStringAsync());
-                return orderStatusResponse;
+                Logger.Trace($"SubmitOrderStatusRequestAsync Request JSON: {LogRedactor.Json(orderStatusRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/order/status", new StringContent(
+                    JsonConvert.SerializeObject(orderStatusRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitOrderStatusRequestAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    var orderStatusResponse = JsonConvert.DeserializeObject<NewOrderResponse>(responseBody);
+                    if (orderStatusResponse == null)
+                        Logger.Warn("SubmitOrderStatusRequestAsync: Deserialized response is null.");
+                    return orderStatusResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitOrderStatusRequestAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
         public async Task<IOrganizationResponse> SubmitOrganizationListAsync(OrganizationListRequest organizationListRequest)
         {
-            using (var resp = await RestClient.PostAsync("/rest/digicert/organizationlist", new StringContent(
-                JsonConvert.SerializeObject(organizationListRequest), Encoding.UTF8, "application/json")))
+            Logger.Trace("SubmitOrganizationListAsync called.");
+            try
             {
-                var organizationListResponse =
-                    JsonConvert.DeserializeObject<OrganizationResponse>(await resp.Content.ReadAsStringAsync());
-                return organizationListResponse;
+                Logger.Trace($"SubmitOrganizationListAsync Request JSON: {LogRedactor.Json(organizationListRequest)}");
+                using (var resp = await RestClient.PostAsync("/rest/digicert/organizationlist", new StringContent(
+                    JsonConvert.SerializeObject(organizationListRequest), Encoding.UTF8, "application/json")))
+                {
+                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    Logger.Trace($"SubmitOrganizationListAsync Response StatusCode={resp.StatusCode}, Body={LogRedactor.Redact(responseBody)}");
+                    var organizationListResponse = JsonConvert.DeserializeObject<OrganizationResponse>(responseBody);
+                    if (organizationListResponse == null)
+                        Logger.Warn("SubmitOrganizationListAsync: Deserialized response is null.");
+                    return organizationListResponse;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"SubmitOrganizationListAsync failed: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Logger.Error($"Inner exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                throw;
             }
         }
 
